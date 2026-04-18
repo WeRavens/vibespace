@@ -35,6 +35,13 @@ const translations = {
   vibesLabel: { id: "vibes", en: "vibes" },
   unblockUser: { id: "Buka Blokir", en: "Unblock User" },
   blockUser: { id: "Blokir User", en: "Block User" },
+  deleteUser: { id: "Hapus User", en: "Delete User" },
+  deleteUserConfirm: {
+    id: "Apakah kamu yakin ingin menghapus user ini? Semua postingan user ini juga akan ikut dihapus dari aplikasi.",
+    en: "Are you sure you want to delete this user? All of this user's posts will also be removed from the app.",
+  },
+  deleteUserSuccess: { id: "User berhasil dihapus dari aplikasi.", en: "User was deleted from the app successfully." },
+  deleteUserFailed: { id: "Gagal menghapus user.", en: "Failed to delete user." },
   status: { id: "Status", en: "Status" },
   blocked: { id: "Diblokir", en: "Blocked" },
   active: { id: "Aktif", en: "Active" },

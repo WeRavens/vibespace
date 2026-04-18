@@ -12,6 +12,22 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function hasAdminOverride() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.overrideAdmin == true;
+    }
+
+    function hasAdminEmail() {
+      return isSignedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('.*(ikfah|admin).*');
+    }
+
+    function isAdmin() {
+      return hasAdminOverride() || hasAdminEmail();
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -62,13 +78,19 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if false; // No blanket user listing
       allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) 
-        && incoming().uid == existing().uid
-        && incoming().createdAt == existing().createdAt
-        && (
-          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio'])
+      allow update: if (
+          isOwner(userId) 
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio'])
+        )
+        || (
+          isAdmin()
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['isBanned', 'bannedAt', 'unbannedAt'])
         );
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------------------------
@@ -88,7 +110,21 @@ service cloud.firestore {
         || (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mood', 'isAnonymous']))
       );
       
-      allow delete: if isOwner(existing().userId);
+      allow delete: if isOwner(existing().userId) || isAdmin();
+    }
+
+    match /bannedUsers/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isAdmin();
+      allow update: if false;
     }
   }
 }

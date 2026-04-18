@@ -15,7 +15,7 @@ import { Notifications } from './components/Notifications';
 import { ProfileGrid } from './components/ProfileGrid';
 import { Avatar } from './components/Avatar';
 import { AnimatePresence, motion } from 'motion/react';
-import { Plus, Command, Search, Bell, User, Ghost, LogOut, Edit2, Check, X, Camera, ShieldAlert } from 'lucide-react';
+import { Plus, Command, Search, Bell, User, Ghost, LogOut, Edit2, Check, X, Camera, ShieldAlert, Trash2 } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from './lib/firebase';
@@ -272,6 +272,52 @@ function VibeSpace() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!isAdmin || !isViewingOtherProfile || !viewingUser?.uid || !db) return;
+
+    if (!confirm(t('deleteUserConfirm'))) {
+      return;
+    }
+
+    try {
+      const userId = viewingUser.uid;
+
+      const userVibesSnap = await getDocs(
+        query(collection(db, 'vibes'), where('userId', '==', userId)),
+      );
+
+      await Promise.all(userVibesSnap.docs.map((vibeDoc) => deleteDoc(doc(db, 'vibes', vibeDoc.id))));
+
+      const targetNotificationsSnap = await getDocs(
+        query(collection(db, 'notifications'), where('targetUserId', '==', userId)),
+      );
+      const actorNotificationsSnap = await getDocs(
+        query(collection(db, 'notifications'), where('actorId', '==', userId)),
+      );
+
+      const notificationIds = new Set([
+        ...targetNotificationsSnap.docs.map((notificationDoc) => notificationDoc.id),
+        ...actorNotificationsSnap.docs.map((notificationDoc) => notificationDoc.id),
+      ]);
+
+      await Promise.all(
+        [...notificationIds].map((notificationId) =>
+          deleteDoc(doc(db, 'notifications', notificationId)),
+        ),
+      );
+
+      await deleteDoc(doc(db, 'bannedUsers', userId)).catch(() => {});
+      await deleteDoc(doc(db, 'users', userId));
+
+      setViewingUser(null);
+      setActiveTab('Feed');
+      alert(t('deleteUserSuccess'));
+    } catch (error) {
+      console.error('Failed to delete user', error);
+      alert(t('deleteUserFailed'));
+    }
+  };
+
   // Re-sync viewingUser if we switch to profile tab naturally
   useEffect(() => {
     if (activeTab === 'Profile' && !viewingUser) {
@@ -438,6 +484,13 @@ function VibeSpace() {
                       <p className="text-left text-[11px] uppercase tracking-[2px] text-vibe-muted">
                         {t('status')}: {viewingUser.isBanned ? t('blocked') : t('active')}
                       </p>
+                      <button
+                        onClick={handleDeleteUser}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-black uppercase tracking-[2px] text-red-300 transition-all hover:bg-red-500/20"
+                      >
+                        <Trash2 size={16} />
+                        {t('deleteUser')}
+                      </button>
                     </div>
                   )}
                   </div>
