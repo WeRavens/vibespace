@@ -238,7 +238,7 @@ export function Feed({
   }
 
   return (
-    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar scroll-smooth">
+    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black">
       {vibes.map((vibe, index) => (
         <MemoizedFeedItem
           key={vibe.id}
@@ -250,7 +250,7 @@ export function Feed({
         />
       ))}
       {/* Sentinel for infinite loop */}
-      <div ref={sentinelRef} className="h-10 w-full flex-shrink-0" />
+      <div ref={sentinelRef} className="h-px w-full flex-shrink-0" />
     </div>
   );
 }
@@ -330,7 +330,12 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
   };
 
   return (
-    <div ref={containerRef} className="relative h-[100dvh] w-full flex-shrink-0 snap-start snap-always bg-black overflow-hidden select-none transform-gpu" data-vibe-id={vibe.id}>
+    <div
+      ref={containerRef}
+      className="relative h-full w-full flex-shrink-0 snap-start snap-always bg-black overflow-hidden select-none will-change-transform"
+      style={{ contain: 'strict' }}
+      data-vibe-id={vibe.id}
+    >
       {/* Background Media */}
       <div className="absolute inset-0 h-full w-full pointer-events-none">
         {vibe.type === 'video' && vibe.mediaUrl ? (
