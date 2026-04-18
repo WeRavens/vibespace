@@ -97,6 +97,7 @@ export function Feed({
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   // Helper to shuffle array
   const shuffle = (array: any[]) => {
@@ -111,6 +112,7 @@ export function Feed({
   useEffect(() => {
     if (!db) return;
     setLoading(true);
+    isInitialLoad.current = true;
 
     let q = query(collection(db, "vibes"), limit(100));
 
@@ -121,14 +123,6 @@ export function Feed({
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty && !initialVibeId && !userFilter && !activeMood) {
-        const shuffled = shuffle(SAMPLE_VIBES);
-        setPool(shuffled);
-        setVibes(shuffled);
-        setLoading(false);
-        return;
-      }
-
       const fetched = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -143,20 +137,40 @@ export function Feed({
         };
       }) as Vibe[];
 
-      // Initial Shuffle for randomization
-      let shuffledPool = shuffle(fetched);
-
-      // If we have an initial ID, put it first
-      if (initialVibeId) {
-        const idx = shuffledPool.findIndex(v => v.id === initialVibeId);
-        if (idx > -1) {
-          const [v] = shuffledPool.splice(idx, 1);
-          shuffledPool.unshift(v);
+      if (snapshot.empty && !initialVibeId && !userFilter && !activeMood) {
+        if (isInitialLoad.current) {
+          const shuffled = shuffle(SAMPLE_VIBES);
+          setVibes(shuffled);
+          setPool(shuffled);
+          isInitialLoad.current = false;
         }
+        setLoading(false);
+        return;
       }
 
-      setPool(shuffledPool);
-      setVibes(shuffledPool);
+      setPool(fetched);
+
+      // CRITICAL FIX: Only shuffle on the very first data arrival
+      if (isInitialLoad.current) {
+        let shuffledOrder = shuffle(fetched);
+        if (initialVibeId) {
+          const idx = shuffledOrder.findIndex(v => v.id === initialVibeId);
+          if (idx > -1) {
+            const [v] = shuffledOrder.splice(idx, 1);
+            shuffledOrder.unshift(v);
+          }
+        }
+        setVibes(shuffledOrder);
+        isInitialLoad.current = false;
+      } else {
+        // Update data ONLY, keep the same order
+        setVibes(prevVibes => prevVibes.map(v => {
+          const baseId = v.id.split('-repeat-')[0];
+          const updated = fetched.find(f => f.id === baseId);
+          return updated ? { ...updated, id: v.id } : v;
+        }));
+      }
+
       setLoading(false);
     }, (err) => {
       console.error(err);
@@ -168,14 +182,13 @@ export function Feed({
 
   // Infinite Scroll Observer
   useEffect(() => {
-    if (vibes.length === 0) return;
+    if (vibes.length === 0 || pool.length === 0) return;
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        // When reaching the end, shuffle the pool and append it again
         const extraVibes = shuffle(pool).map(v => ({
           ...v,
-          id: `${v.id}-repeat-${Math.random().toString(36).substr(2, 5)}` // Unique ID for key
+          id: `${v.id}-repeat-${Math.random().toString(36).substr(2, 5)}`
         }));
         setVibes(prev => [...prev, ...extraVibes]);
       }
