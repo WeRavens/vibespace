@@ -29,17 +29,34 @@ import {
   Plus,
   Play,
   Pause,
+  Share2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "../lib/AuthContext";
+import { Share } from "@capacitor/share";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { cn } from "../lib/utils";
+import { Avatar } from "./Avatar";
 
 const REACTION_EMOJIS = ["😊", "😍", "😂", "😮", "😢", "😎", "👏", "🔥"];
 
 export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: { userFilter?: string; initialVibeId?: string; activeMood?: string | null; onOpenProfile?: (id: string) => void }) {
   const [vibes, setVibes] = useState<Vibe[]>([]);
+  const [fetchedInitialVibe, setFetchedInitialVibe] = useState<Vibe | null>(null);
   const { user } = useAuth();
   const [isExplicitAdmin, setIsExplicitAdmin] = useState(false);
+
+  useEffect(() => {
+    if (initialVibeId && db) {
+      getDoc(doc(db, "vibes", initialVibeId)).then((snap) => {
+        if (snap.exists()) {
+          setFetchedInitialVibe({ id: snap.id, ...snap.data() } as Vibe);
+        }
+      });
+    } else {
+      setFetchedInitialVibe(null);
+    }
+  }, [initialVibeId]);
 
   useEffect(() => {
     if (user && db) {
@@ -155,6 +172,10 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
       }
     }
 
+    if (Capacitor.isNativePlatform()) {
+      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+    }
+
     await updateDoc(doc(db, "vibes", vibeId), {
       reactions: currentReactions,
       userReactions: currentUserReactions,
@@ -185,11 +206,15 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
   }, []);
 
   const repeatedVibes = useMemo(() => {
-    if (filteredVibes.length === 0) return [];
+    if (filteredVibes.length === 0 && !fetchedInitialVibe) return [];
     
     // Sort so initialVibeId is strictly placed as the first element of the first page!
     let firstPageVibes = [...filteredVibes];
-    if (initialVibeId) {
+
+    if (fetchedInitialVibe) {
+      firstPageVibes = firstPageVibes.filter(v => v.id !== fetchedInitialVibe.id);
+      firstPageVibes.unshift(fetchedInitialVibe);
+    } else if (initialVibeId) {
       const idx = firstPageVibes.findIndex(v => v.id === initialVibeId);
       if (idx !== -1) {
         const [target] = firstPageVibes.splice(idx, 1);
@@ -205,7 +230,7 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
         result = result.concat(shuffled.map((v, index) => ({ ...v, uniqueKey: v.id + '-' + i + '-' + index })));
     }
     return result;
-  }, [filteredVibes, pageMultiplier, initialVibeId]);
+  }, [filteredVibes, pageMultiplier, initialVibeId, fetchedInitialVibe]);
 
   return (
     <div className="flex flex-col items-center space-y-0 sm:space-y-12 w-full pb-8 sm:pb-0">
@@ -294,6 +319,11 @@ function VibeCard({
     await updateDoc(doc(db, "vibes", vibe.id), {
       comments: [...(vibe.comments || []), newComment],
     });
+
+    if (Capacitor.isNativePlatform()) {
+      Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+    }
+
     setCommentText("");
 
     // Fire notification if not commenting on own post
@@ -341,6 +371,37 @@ function VibeCard({
     await updateDoc(doc(db, "vibes", vibe.id), {
       savedBy: currentSaves,
     });
+
+    if (Capacitor.isNativePlatform()) {
+      Haptics.notification({ type: ImpactStyle.Light as any }).catch(() => {});
+    }
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `https://vibespace.app/vibe/${vibe.id}`;
+    const shareText = `Check out this vibe by ${vibe.isAnonymous ? "SecretViber" : vibe.authorName} on VibeSpace!`;
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: 'VibeSpace',
+          text: shareText,
+          url: shareUrl,
+          dialogTitle: 'Share this vibe',
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: 'VibeSpace',
+          text: shareText,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Link copied to clipboard!");
+      }
+    } catch (error) {
+      console.error('Error sharing', error);
+    }
   };
 
   const isAdmin =
@@ -408,11 +469,12 @@ function VibeCard({
 
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 overflow-hidden rounded-full border border-vibe-ink bg-vibe-accent">
-                {!vibe.isAnonymous && vibe.authorPhoto && (
-                  <img src={vibe.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                )}
-              </div>
+              <Avatar
+                src={!vibe.isAnonymous ? vibe.authorPhoto : undefined}
+                name={vibe.isAnonymous ? "SecretViber" : vibe.authorName}
+                className="h-10 w-10 border border-vibe-ink"
+                textClassName="text-sm"
+              />
               <div className="flex-1 min-w-0">
                 <div 
                   className="pointer-events-auto block cursor-pointer truncate font-serif font-bold tracking-tight text-white transition-colors hover:text-vibe-accent"

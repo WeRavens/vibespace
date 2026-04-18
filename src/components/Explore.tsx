@@ -7,6 +7,7 @@ import { Feed } from './Feed';
 import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
 import { useLanguage } from '../lib/LanguageContext';
+import { Avatar } from './Avatar';
 
 export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -95,9 +96,13 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
             <div className="space-y-4">
               {results.users.map((u, i) => (
                 <div key={i} onClick={() => onOpenProfile?.(u.uid)} className="flex items-center space-x-4 p-4 rounded-2xl bg-[#111] border border-vibe-line cursor-pointer hover:border-vibe-accent transition-colors">
-                  <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-vibe-line bg-[#050505]">
-                    <img src={u.photoURL} alt="pfp" className="w-full h-full object-cover" />
-                  </div>
+                  <Avatar
+                    src={u.photoURL}
+                    name={u.displayName}
+                    alt="pfp"
+                    className="h-12 w-12 shrink-0 border border-vibe-line bg-[#050505]"
+                    textClassName="text-sm"
+                  />
                   <div>
                     <div className="font-bold text-white">{u.displayName}</div>
                     <div className="text-xs font-mono text-vibe-muted">{u.email}</div>

@@ -60,21 +60,18 @@ export function ProfileGrid({ userId, mode = 'posts', onViewerStateChange }: { u
                 vibe.type === 'video' ? (
                    <>
                      <div className="absolute inset-0 bg-black" />
-                     {isNativeOrMobile ? (
-                       <div className="absolute inset-0 flex items-center justify-center">
-                         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_0_20px_rgba(0,0,0,0.35)] backdrop-blur-md">
-                           <Play size={18} className="ml-0.5 fill-current" />
-                         </div>
-                       </div>
-                     ) : (
-                       <video
-                         src={vibe.mediaUrl}
-                         muted
-                         playsInline
-                         preload="metadata"
-                         className="absolute inset-0 w-full h-full object-contain"
-                       />
-                     )}
+                     <video
+                       src={`${vibe.mediaUrl}#t=0.1`}
+                       muted
+                       playsInline
+                       preload="metadata"
+                       className="absolute inset-0 w-full h-full object-contain"
+                     />
+                     <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                           <Play size={16} className="ml-0.5 fill-current" />
+                        </div>
+                     </div>
                      <div className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white backdrop-blur-sm">
                        <Play size={12} className="fill-current" />
                      </div>

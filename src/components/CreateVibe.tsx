@@ -13,6 +13,8 @@ import { useAuth } from "../lib/AuthContext";
 import { useUpload } from "../lib/UploadContext";
 import { cn } from "../lib/utils";
 import { useLanguage } from "../lib/LanguageContext";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import { Capacitor } from "@capacitor/core";
 
 interface CreateVibeProps {
   onClose: () => void;
@@ -47,6 +49,10 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
 
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
+
+      if (Capacitor.isNativePlatform()) {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+      }
     }
   };
 
@@ -63,6 +69,10 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
 
     setErrorMessage(null);
     try {
+      if (Capacitor.isNativePlatform()) {
+        Haptics.notification({ type: ImpactStyle.Heavy as any }).catch(() => {});
+      }
+
       startVibeUpload({
         content,
         mood,
