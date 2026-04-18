@@ -12,6 +12,7 @@ import { MOODS, MoodId } from "../lib/types";
 import { useAuth } from "../lib/AuthContext";
 import { useUpload } from "../lib/UploadContext";
 import { cn } from "../lib/utils";
+import { useLanguage } from "../lib/LanguageContext";
 
 interface CreateVibeProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ interface CreateVibeProps {
 export function CreateVibe({ onClose }: CreateVibeProps) {
   const { user } = useAuth();
   const { startVibeUpload, maxMediaSizeMb, activeUpload } = useUpload();
+  const { t } = useLanguage();
   const [content, setContent] = useState("");
   const [mood, setMood] = useState<MoodId>("chill");
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -99,7 +101,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
       >
         <div className="mb-8 flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-[2px] text-vibe-muted">
-            New Vibe
+            {t("newVibe")}
           </h2>
           <button
             onClick={onClose}
@@ -114,7 +116,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="What's your vibe right now?"
+              placeholder={t("whatsYourVibe")}
               className="h-40 w-full resize-none bg-transparent border-b border-vibe-line py-2 text-2xl font-serif italic focus:outline-none focus:border-vibe-accent transition-colors"
               maxLength={280}
             />
@@ -158,7 +160,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
                   />
                 </div>
                 <p className="text-xs uppercase tracking-[2px] text-vibe-muted">
-                  Uploading media {activeUpload.progress}%
+                  {t("uploadingMedia", { progress: activeUpload.progress })}
                 </p>
               </div>
             )}
@@ -166,7 +168,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
 
           <div>
             <label className="mb-4 block text-[10px] font-bold uppercase tracking-wider text-vibe-muted">
-              Choose your mood
+              {t("chooseMood")}
             </label>
             <div className="flex flex-wrap gap-2">
               {MOODS.map((m) => (
@@ -196,7 +198,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
                     document.getElementById("media-upload")?.click()
                   }
                   className="text-vibe-muted hover:text-vibe-accent transition-colors"
-                  title="Add Image or Video"
+                  title={t("addImageOrVideo")}
                 >
                   <Camera size={24} />
                 </button>
@@ -221,7 +223,7 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
               >
                 <Ghost size={14} />
                 <span className="hidden sm:inline">
-                  {isAnonymous ? "Anonymous Mode" : "Post Anonymously"}
+                  {isAnonymous ? t("anonymousMode") : t("postAnonymously")}
                 </span>
               </button>
 
@@ -234,11 +236,11 @@ export function CreateVibe({ onClose }: CreateVibeProps) {
                     ? "text-vibe-accent"
                     : "text-vibe-muted hover:text-vibe-ink",
                 )}
-                title={isPermanent ? "Permanent Post" : "Disappears in 24h"}
+                title={isPermanent ? t("permanentPost") : t("disappearsIn24h")}
               >
                 {isPermanent ? <InfinityIcon size={14} /> : <Clock size={14} />}
                 <span className="hidden sm:inline">
-                  {isPermanent ? "Permanent" : "24h Status"}
+                  {isPermanent ? t("permanent") : t("status24h")}
                 </span>
               </button>
             </div>

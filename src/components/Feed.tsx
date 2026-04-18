@@ -6,8 +6,6 @@ import {
   orderBy,
   onSnapshot,
   limit,
-  Timestamp,
-  getDocs,
   getDoc,
   doc,
   updateDoc,
@@ -15,12 +13,10 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { Vibe, MOODS } from "../lib/types";
+import { Vibe } from "../lib/types";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Heart,
   MessageCircle,
-  MoreHorizontal,
   Trash2,
   Clock,
   X,
@@ -30,10 +26,15 @@ import {
   Infinity as InfinityIcon,
   Volume2,
   VolumeX,
+  Plus,
+  Play,
+  Pause,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "../lib/AuthContext";
 import { cn } from "../lib/utils";
+
+const REACTION_EMOJIS = ["😊", "😍", "😂", "😮", "😢", "😎", "👏", "🔥"];
 
 export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: { userFilter?: string; initialVibeId?: string; activeMood?: string | null; onOpenProfile?: (id: string) => void }) {
   const [vibes, setVibes] = useState<Vibe[]>([]);
@@ -115,14 +116,24 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
     if (existingReact === emoji) {
       // Undo react
       delete currentUserReactions[user.uid];
-      currentReactions[emoji] = Math.max(0, (currentReactions[emoji] || 1) - 1);
+      const nextCount = Math.max(0, (currentReactions[emoji] || 1) - 1);
+      if (nextCount === 0) {
+        delete currentReactions[emoji];
+      } else {
+        currentReactions[emoji] = nextCount;
+      }
     } else {
       // Change or add react
       if (existingReact) {
-        currentReactions[existingReact] = Math.max(
+        const previousCount = Math.max(
           0,
           (currentReactions[existingReact] || 1) - 1,
         );
+        if (previousCount === 0) {
+          delete currentReactions[existingReact];
+        } else {
+          currentReactions[existingReact] = previousCount;
+        }
       }
       currentUserReactions[user.uid] = emoji;
       currentReactions[emoji] = (currentReactions[emoji] || 0) + 1;
@@ -249,7 +260,6 @@ function VibeCard({
   key?: React.Key;
   onOpenProfile?: (id: string) => void;
 }) {
-  const moodInfo = MOODS.find((m) => m.id === vibe.mood);
   const timeStr = vibe.createdAt
     ? formatDistanceToNow(
         vibe.createdAt?.toDate?.() || new Date(vibe.createdAt),
@@ -258,9 +268,16 @@ function VibeCard({
   const totalReactions = vibe.reactions
     ? Object.values(vibe.reactions).reduce((a, b) => a + b, 0)
     : 0;
+  const sortedReactions = Object.entries(vibe.reactions || {})
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const visibleReactions = sortedReactions.slice(0, 5);
+  const hiddenReactions = sortedReactions.slice(5);
 
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showAllReactions, setShowAllReactions] = useState(false);
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,10 +398,10 @@ function VibeCard({
       )}
 
       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none" />
-      <div className="absolute inset-0 z-10 flex flex-col justify-end p-8 sm:pb-8 pb-10">
-        <div className="md:w-3/4 flex flex-col max-h-full">
+      <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end p-8 sm:pb-8 pb-10">
+        <div className="md:w-3/4 flex max-h-full flex-col">
           {vibe.isAnonymous && (
-            <div className="mb-4 inline-flex items-center rounded bg-vibe-muted/30 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-sm self-start">
+            <div className="pointer-events-auto mb-4 inline-flex self-start rounded bg-vibe-muted/30 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-sm">
               Anonymous Vibe
             </div>
           )}
@@ -398,7 +415,7 @@ function VibeCard({
               </div>
               <div className="flex-1 min-w-0">
                 <div 
-                  className="font-bold text-white font-serif tracking-tight truncate cursor-pointer hover:text-vibe-accent transition-colors block"
+                  className="pointer-events-auto block cursor-pointer truncate font-serif font-bold tracking-tight text-white transition-colors hover:text-vibe-accent"
                   onClick={(e) => { e.stopPropagation(); onOpenProfile?.(vibe.userId); }}
                 >
                   {vibe.isAnonymous ? "SecretViber" : vibe.authorName}
@@ -423,8 +440,9 @@ function VibeCard({
                 <span>{totalReactions} Vibes</span>
               </div>
               <button
+                type="button"
                 onClick={() => setShowComments(true)}
-                className="text-vibe-muted flex flex-col items-center justify-center hover:text-vibe-accent transition-colors"
+                className="pointer-events-auto flex flex-col items-center justify-center text-vibe-muted transition-colors hover:text-vibe-accent"
                 title="Comments"
               >
                 <MessageCircle size={22} className="mb-0.5" />
@@ -434,27 +452,9 @@ function VibeCard({
               </button>
             </div>
 
-            <div className="flex space-x-2">
-              {["🔥", "💯"].map((emoji) => {
-                const isActive =
-                  currentUser &&
-                  vibe.userReactions?.[currentUser.uid] === emoji;
-                return (
-                  <button
-                    key={emoji}
-                    onClick={() => onReact(vibe.id, emoji)}
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-transform",
-                      isActive
-                        ? "border-vibe-accent bg-vibe-accent/20 text-vibe-accent scale-110"
-                        : "border-vibe-line bg-vibe-ink/5 hover:scale-110 active:scale-90",
-                    )}
-                  >
-                    {emoji}
-                  </button>
-                );
-              })}
+            <div className="pointer-events-auto flex space-x-2">
               <button
+                type="button"
                 onClick={handleSave}
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-full border transition-all",
@@ -471,6 +471,7 @@ function VibeCard({
               </button>
               {canDelete && (
                 <button
+                  type="button"
                   onClick={handleDelete}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-red-900 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-md hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                   title="Hapus Postingan"
@@ -480,6 +481,7 @@ function VibeCard({
               )}
               {isAdmin && !isOwner && (
                 <button
+                  type="button"
                   onClick={handleBanUser}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-vibe-line bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-white transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)]"
                   title="Ban User"
@@ -490,6 +492,130 @@ function VibeCard({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {showAllReactions && sortedReactions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              className="flex max-w-[75vw] flex-wrap justify-end gap-2 rounded-3xl border border-white/15 bg-black/70 p-3 backdrop-blur-xl"
+            >
+              {sortedReactions.map(([emoji, count]) => (
+                <button
+                  key={`all-${emoji}`}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onReact(vibe.id, emoji);
+                    setShowAllReactions(false);
+                  }}
+                  className={cn(
+                    "relative flex min-w-[44px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 py-2 text-lg text-white backdrop-blur-md transition-transform hover:scale-105",
+                    currentUser && vibe.userReactions?.[currentUser.uid] === emoji
+                      ? "border-vibe-accent bg-vibe-accent/20 shadow-[0_0_18px_rgba(0,255,209,0.22)]"
+                      : "",
+                  )}
+                  title={`React with ${emoji}`}
+                >
+                  <span>{emoji}</span>
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-black">
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex max-w-[75vw] flex-wrap justify-end gap-2">
+          {visibleReactions.map(([emoji, count]) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onReact(vibe.id, emoji);
+              }}
+              className={cn(
+                "relative flex min-w-[42px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 py-2 text-base text-white backdrop-blur-md transition-transform hover:scale-105",
+                currentUser && vibe.userReactions?.[currentUser.uid] === emoji
+                  ? "border-vibe-accent bg-vibe-accent/20 shadow-[0_0_18px_rgba(0,255,209,0.22)]"
+                  : "",
+              )}
+              title={`React with ${emoji}`}
+            >
+              <span>{emoji}</span>
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-black">
+                {count}
+              </span>
+            </button>
+          ))}
+          {hiddenReactions.length > 0 && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowAllReactions((prev) => !prev);
+              }}
+              className="flex h-10 min-w-[42px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 text-sm font-bold tracking-[0.2em] text-white backdrop-blur-md transition-transform hover:scale-105"
+              title="Lihat semua emoji"
+            >
+              ...
+            </button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {showReactionPicker && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.92 }}
+              className="grid grid-cols-4 gap-2 rounded-3xl border border-white/15 bg-black/65 p-3 backdrop-blur-xl"
+            >
+              {REACTION_EMOJIS.map((emoji) => {
+                const isActive =
+                  currentUser && vibe.userReactions?.[currentUser.uid] === emoji;
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReact(vibe.id, emoji);
+                      setShowReactionPicker(false);
+                    }}
+                    className={cn(
+                      "flex h-11 w-11 items-center justify-center rounded-full border text-xl transition-all",
+                      isActive
+                        ? "border-vibe-accent bg-vibe-accent/20 scale-110"
+                        : "border-white/10 bg-white/5 hover:scale-110",
+                    )}
+                    title={`Add ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setShowAllReactions(false);
+            setShowReactionPicker((prev) => !prev);
+          }}
+          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white backdrop-blur-md transition-all hover:scale-105 hover:bg-black/75"
+          title="Tambah emoji reaction"
+        >
+          <Plus size={18} />
+        </button>
       </div>
 
       <AnimatePresence>
@@ -573,6 +699,8 @@ function VideoBackdrop({ src }: { src: string }) {
   const [hasError, setHasError] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isManuallyPaused, setIsManuallyPaused] = useState(false);
+  const [playbackIndicator, setPlaybackIndicator] = useState<"play" | "pause" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -596,12 +724,22 @@ function VideoBackdrop({ src }: { src: string }) {
 
     video.muted = isMuted;
 
-    if (isVisible && isReady && !hasError) {
+    if (isVisible && isReady && !hasError && !isManuallyPaused) {
       void video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, [hasError, isMuted, isReady, isVisible]);
+  }, [hasError, isManuallyPaused, isMuted, isReady, isVisible]);
+
+  useEffect(() => {
+    if (!playbackIndicator) return;
+
+    const timeout = window.setTimeout(() => {
+      setPlaybackIndicator(null);
+    }, 650);
+
+    return () => window.clearTimeout(timeout);
+  }, [playbackIndicator]);
 
   const toggleMute = () => {
     const video = videoRef.current;
@@ -616,8 +754,28 @@ function VideoBackdrop({ src }: { src: string }) {
     }
   };
 
+  const togglePlayback = () => {
+    const video = videoRef.current;
+    if (!video || !isReady || hasError) return;
+
+    setIsManuallyPaused((prev) => {
+      const nextPaused = !prev;
+      setPlaybackIndicator(nextPaused ? "pause" : "play");
+      if (nextPaused) {
+        video.pause();
+      } else {
+        void video.play().catch(() => {});
+      }
+      return nextPaused;
+    });
+  };
+
   return (
-    <div ref={containerRef} className="absolute inset-0 bg-black">
+    <div
+      ref={containerRef}
+      className="absolute inset-0 bg-black"
+      onClick={togglePlayback}
+    >
       <video
         ref={videoRef}
         src={src}
@@ -633,6 +791,25 @@ function VideoBackdrop({ src }: { src: string }) {
         onCanPlay={() => setIsReady(true)}
         onError={() => setHasError(true)}
       />
+
+      <AnimatePresence>
+        {playbackIndicator && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.75 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
+          >
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-[0_0_32px_rgba(0,0,0,0.3)] backdrop-blur-md">
+              {playbackIndicator === "pause" ? (
+                <Pause size={28} className="fill-current" />
+              ) : (
+                <Play size={28} className="translate-x-[2px] fill-current" />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isReady && !hasError && (
         <button
@@ -717,7 +894,7 @@ const SAMPLE_VIBES: Vibe[] = [
     isAnonymous: false,
     createdAt: new Date(),
     expiresAt: new Date(Date.now() + 86400000),
-    reactions: { "💯": 5 },
+    reactions: { "😎": 5 },
   },
 ];
 

@@ -4,10 +4,12 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../lib/AuthContext';
 import { Heart, MessageCircle, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useLanguage } from '../lib/LanguageContext';
 
 export function Notifications({ onOpenVibe }: { onOpenVibe?: (id: string) => void }) {
   const { user } = useAuth();
   const [notifs, setNotifs] = useState<any[]>([]);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!user || !db) return;
@@ -40,15 +42,15 @@ export function Notifications({ onOpenVibe }: { onOpenVibe?: (id: string) => voi
   };
 
   const renderText = (n: any) => {
-     if (n.type === 'react') return <span><strong className="text-white">{n.actorName}</strong> memberikan reaksi {n.text} pada postinganmu.</span>;
-     if (n.type === 'comment') return <span><strong className="text-white">{n.actorName}</strong> baru saja berkomentar: "{n.text}"</span>;
-     return <span>Aktivitas baru dari {n.actorName}</span>;
+     if (n.type === 'react') return <span>{t('reactedToPost', { name: n.actorName, text: n.text })}</span>;
+     if (n.type === 'comment') return <span>{t('commentedOnPost', { name: n.actorName, text: n.text })}</span>;
+     return <span>{t('activityBy', { name: n.actorName })}</span>;
   };
 
   return (
     <div className="w-full h-full p-4 md:p-8 overflow-y-auto no-scrollbar pb-32">
        <div className="max-w-xl mx-auto space-y-6">
-         <h2 className="text-2xl font-black uppercase tracking-tighter text-white mb-8 border-b border-vibe-line pb-4">Notifications</h2>
+         <h2 className="text-2xl font-black uppercase tracking-tighter text-white mb-8 border-b border-vibe-line pb-4">{t('notificationsTitle')}</h2>
          
          <div className="space-y-4">
            {notifs.length > 0 ? notifs.map(n => (
@@ -63,13 +65,13 @@ export function Notifications({ onOpenVibe }: { onOpenVibe?: (id: string) => voi
                <div className="flex-1">
                  <div className="text-sm text-vibe-muted">{renderText(n)}</div>
                  <div className="text-xs font-mono text-vibe-muted/50 mt-1">
-                    {n.createdAt ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : 'baru saja'}
+                    {n.createdAt ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : t('justNow')}
                  </div>
                </div>
              </div>
            )) : (
              <div className="py-20 text-center text-sm text-vibe-muted font-mono border border-dashed border-vibe-line rounded-3xl bg-[#0a0a0a]">
-               Belum ada pemberitahuan baru (No recent activity).
+               {t('noNotifications')}
              </div>
            )}
          </div>

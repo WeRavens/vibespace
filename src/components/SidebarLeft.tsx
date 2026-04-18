@@ -3,6 +3,7 @@ import { MOODS } from '../lib/types';
 import { motion } from 'motion/react';
 import { Command, Search, Bell, User, Ghost } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useLanguage } from '../lib/LanguageContext';
 
 interface SidebarLeftProps {
   activeTab: string;
@@ -13,13 +14,14 @@ interface SidebarLeftProps {
 
 export function SidebarLeft({ activeTab, setActiveTab, activeMood, setActiveMood }: SidebarLeftProps) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   
   const navItems = [
-    { icon: Command, label: 'Feed', id: 'Feed' },
-    { icon: Search, label: 'Explore', id: 'Explore' },
-    { icon: Bell, label: 'Notifications', id: 'Notifications' },
-    { icon: User, label: 'Profile', id: 'Profile' },
-    { icon: Ghost, label: 'Anonymous', id: 'Anonymous' },
+    { icon: Command, label: t('homeFeed'), id: 'Feed' },
+    { icon: Search, label: t('explore'), id: 'Explore' },
+    { icon: Bell, label: t('notifications'), id: 'Notifications' },
+    { icon: User, label: t('profile'), id: 'Profile' },
+    { icon: Ghost, label: t('anonymous'), id: 'Anonymous' },
   ];
 
   return (
@@ -52,12 +54,12 @@ export function SidebarLeft({ activeTab, setActiveTab, activeMood, setActiveMood
         className="mt-6 w-full py-4 rounded-full bg-vibe-accent text-vibe-bg font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center justify-center space-x-2"
       >
         <Command size={18} />
-        <span>Create Vibe</span>
+        <span>{t('createVibe')}</span>
       </button>
 
       <div className="mt-10 pt-10 border-t border-vibe-line">
         <div className="mb-6 text-[11px] font-bold uppercase tracking-[2px] text-vibe-muted">
-          Your Vibe
+          {t('yourVibe')}
         </div>
         <div className="flex flex-wrap gap-2">
           {MOODS.map(m => (

@@ -6,12 +6,14 @@ import { Vibe } from '../lib/types';
 import { Feed } from './Feed';
 import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
+import { useLanguage } from '../lib/LanguageContext';
 
 export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<{ users: any[], posts: Vibe[] }>({ users: [], posts: [] });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const searchData = async () => {
@@ -68,7 +70,7 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
         <div className="relative max-w-xl mx-auto">
           <input 
             type="text" 
-            placeholder="Search users or vibes..." 
+            placeholder={t('searchUsersOrVibes')} 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -79,17 +81,17 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
       </div>
 
       <div className="max-w-xl mx-auto w-full space-y-8 pb-32">
-        {loading && <div className="text-center font-mono text-vibe-muted animate-pulse">Searching the universe...</div>}
+        {loading && <div className="text-center font-mono text-vibe-muted animate-pulse">{t('searchingUniverse')}</div>}
         
         {!loading && searchTerm && results.users.length === 0 && results.posts.length === 0 && (
           <div className="text-center text-vibe-muted py-10 border border-vibe-line border-dashed rounded-3xl">
-            No vibes found for "{searchTerm}"
+            {t('noVibesFound', { term: searchTerm })}
           </div>
         )}
 
         {!loading && results.users.length > 0 && (
           <div>
-            <h3 className="text-xs uppercase tracking-widest text-vibe-muted font-bold mb-4">{!searchTerm ? "Suggested Users" : "Accounts"}</h3>
+            <h3 className="text-xs uppercase tracking-widest text-vibe-muted font-bold mb-4">{!searchTerm ? t('suggestedUsers') : t('accounts')}</h3>
             <div className="space-y-4">
               {results.users.map((u, i) => (
                 <div key={i} onClick={() => onOpenProfile?.(u.uid)} className="flex items-center space-x-4 p-4 rounded-2xl bg-[#111] border border-vibe-line cursor-pointer hover:border-vibe-accent transition-colors">
@@ -108,7 +110,7 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
 
         {!loading && results.posts.length > 0 && (
           <div>
-            <h3 className="text-xs uppercase tracking-widest text-vibe-muted font-bold mb-4">Vibes</h3>
+            <h3 className="text-xs uppercase tracking-widest text-vibe-muted font-bold mb-4">{t('vibes')}</h3>
             <div className="grid grid-cols-1 gap-6">
               {results.posts.map(post => (
                 <div key={post.id} className="relative h-64 rounded-3xl overflow-hidden border border-vibe-line bg-[#111]">

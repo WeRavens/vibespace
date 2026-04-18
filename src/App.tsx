@@ -19,9 +19,11 @@ import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from './lib/firebase';
 import { UploadProvider, useUpload } from './lib/UploadContext';
+import { LanguageProvider, useLanguage } from './lib/LanguageContext';
 
 function VibeSpace() {
   const { user, loading, logout } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('Feed');
   const [showCreate, setShowCreate] = useState(false);
   const [editNameMode, setEditNameMode] = useState(false);
@@ -100,7 +102,7 @@ function VibeSpace() {
       setEditNameMode(false);
       window.location.reload();
     } catch (e) {
-      alert("Failed to update name");
+      alert(t('failedUpdateName'));
     }
   };
 
@@ -137,7 +139,7 @@ function VibeSpace() {
       e.target.value = '';
     } catch(err) {
       console.error('Failed to upload profile photo:', err);
-      alert("Failed to upload photo.");
+      alert(t('uploadFailed'));
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -149,7 +151,7 @@ function VibeSpace() {
       await updateDoc(doc(db, 'users', auth.currentUser.uid), { bio: newBio.trim() });
       setViewingUser({ ...viewingUser, bio: newBio.trim() });
       setEditBioMode(false);
-    } catch(e) { alert("Failed to update description"); }
+    } catch(e) { alert(t('failedUpdateDescription')); }
   };
 
   const handleOpenVibe = (id: string) => {
@@ -282,7 +284,7 @@ function VibeSpace() {
              <button 
                onClick={logout} 
                className="p-3 text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all flex items-center justify-center backdrop-blur-md border border-transparent hover:border-red-500/30 shadow-lg" 
-               title="Log Out"
+               title={t('logOut')}
              >
                 <LogOut size={20} />
              </button>
@@ -341,7 +343,7 @@ function VibeSpace() {
                   <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
                     <div className="flex items-center space-x-2 w-full">
                        <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold tracking-tighter text-white truncate">
-                         {viewingUser.displayName || "Anonymous"}
+                         {viewingUser.displayName || t('anonymous')}
                        </h2>
                        {isViewingOwnProfile && (
                          <Edit2 size={14} className="text-vibe-muted hover:text-white cursor-pointer transition-colors shrink-0" onClick={() => { setNewName(viewingUser.displayName || ''); setEditNameMode(true); }} />
@@ -351,7 +353,7 @@ function VibeSpace() {
                        @{viewingUser.email?.split('@')[0] || viewingUser.uid.substring(0,6)}
                     </p>
                     <p className="text-vibe-muted text-xs sm:text-sm mt-1 truncate drop-shadow-md">
-                       <span className="text-white font-bold">{userStats.video}</span> post • <span className="text-white font-bold">{userStats.vibes}</span> vibes
+                       <span className="text-white font-bold">{userStats.video}</span> {t('postCountLabel')} • <span className="text-white font-bold">{userStats.vibes}</span> {t('vibesLabel')}
                     </p>
                   </div>
                 </div>
@@ -367,10 +369,10 @@ function VibeSpace() {
                         }`}
                       >
                         <ShieldAlert size={16} />
-                        {viewingUser.isBanned ? 'Buka Blokir' : 'Blokir User'}
+                        {viewingUser.isBanned ? t('unblockUser') : t('blockUser')}
                       </button>
                       <p className="text-left text-[11px] uppercase tracking-[2px] text-vibe-muted">
-                        Status: {viewingUser.isBanned ? 'Diblokir' : 'Aktif'}
+                        {t('status')}: {viewingUser.isBanned ? t('blocked') : t('active')}
                       </p>
                     </div>
                   )}
@@ -385,11 +387,11 @@ function VibeSpace() {
                            onChange={e => setNewBio(e.target.value)} 
                            className="w-full bg-[#111] p-3 rounded-xl border border-vibe-line text-white focus:border-vibe-accent outline-none no-scrollbar resize-none" 
                            rows={3} 
-                           placeholder="Tulis deskripsi..."
+                           placeholder={t('writeDescription')}
                          />
                          <div className="flex space-x-2">
-                           <button onClick={handleUpdateBio} className="px-4 py-1.5 text-xs bg-vibe-accent text-vibe-bg font-bold rounded-lg hover:opacity-80 transition-opacity">Simpan</button>
-                           <button onClick={() => setEditBioMode(false)} className="px-4 py-1.5 text-xs border border-vibe-line text-vibe-muted font-bold rounded-lg hover:text-white transition-colors">Batal</button>
+                           <button onClick={handleUpdateBio} className="px-4 py-1.5 text-xs bg-vibe-accent text-vibe-bg font-bold rounded-lg hover:opacity-80 transition-opacity">{t('save')}</button>
+                           <button onClick={() => setEditBioMode(false)} className="px-4 py-1.5 text-xs border border-vibe-line text-vibe-muted font-bold rounded-lg hover:text-white transition-colors">{t('cancel')}</button>
                          </div>
                       </div>
                    ) : (
@@ -399,11 +401,11 @@ function VibeSpace() {
                                viewingUser.bio.length > bioMaxLength 
                                  ? viewingUser.bio.substring(0, bioMaxLength) + ' '
                                  : viewingUser.bio
-                            ) : isViewingOwnProfile ? "Belum ada deskripsi profil. Tambahkan deskripsi..." : "Belum ada deskripsi profil."}
+                            ) : isViewingOwnProfile ? t('noProfileDescriptionSelf') : t('noProfileDescriptionOther')}
                          </p>
                          {viewingUser.bio && viewingUser.bio.length > bioMaxLength && (
                            <button onClick={() => setShowBioModal(true)} className="inline font-bold text-white hover:text-vibe-accent cursor-pointer ml-1">
-                             ...selengkapnya
+                             {t('viewMore')}
                            </button>
                          )}
                          {isViewingOwnProfile && (
@@ -419,11 +421,11 @@ function VibeSpace() {
                 {editNameMode && isViewingOwnProfile && (
                    <div className="absolute inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
                       <div className="bg-[#111] p-6 rounded-3xl w-full max-w-sm border border-vibe-line space-y-4 shadow-2xl">
-                         <h3 className="text-white font-bold text-lg">Ubah Nama Profil</h3>
+                         <h3 className="text-white font-bold text-lg">{t('editProfileName')}</h3>
                          <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="w-full bg-[#050505] border border-vibe-line p-3 rounded-xl text-white outline-none focus:border-vibe-accent" autoFocus />
                          <div className="flex justify-end space-x-2 mt-4">
-                           <button onClick={() => setEditNameMode(false)} className="px-4 py-2 text-sm font-bold text-vibe-muted hover:text-white">Batal</button>
-                           <button onClick={handleUpdateName} className="px-4 py-2 text-sm font-bold bg-vibe-accent text-vibe-bg rounded-xl hover:scale-105 transition-transform">Simpan</button>
+                           <button onClick={() => setEditNameMode(false)} className="px-4 py-2 text-sm font-bold text-vibe-muted hover:text-white">{t('cancel')}</button>
+                           <button onClick={handleUpdateName} className="px-4 py-2 text-sm font-bold bg-vibe-accent text-vibe-bg rounded-xl hover:scale-105 transition-transform">{t('save')}</button>
                          </div>
                       </div>
                    </div>
@@ -434,7 +436,7 @@ function VibeSpace() {
                       <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-0 z-[70] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
                          <motion.div initial={{scale:0.95}} animate={{scale:1}} exit={{scale:0.95}} className="bg-[#111] w-full max-w-md p-6 border border-vibe-line rounded-3xl relative max-h-[80vh] flex flex-col shadow-2xl">
                             <button onClick={() => setShowBioModal(false)} className="absolute top-4 right-4 p-2 text-vibe-muted hover:text-white bg-black/50 rounded-full"><X size={18}/></button>
-                            <h3 className="text-white font-bold mb-4 border-b border-vibe-line pb-4 text-lg">Deskripsi</h3>
+                            <h3 className="text-white font-bold mb-4 border-b border-vibe-line pb-4 text-lg">{t('description')}</h3>
                             <div className="overflow-y-auto no-scrollbar flex-1 pb-4">
                               <p className="text-vibe-muted whitespace-pre-wrap leading-relaxed text-sm">
                                  {viewingUser.bio}
@@ -451,13 +453,13 @@ function VibeSpace() {
                        className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === 'posts' ? 'text-vibe-accent' : 'text-vibe-muted'}`}
                        onClick={() => setProfileTab('posts')}
                      >
-                        Vibes
+                        {t('vibes')}
                      </button>
                      <button 
                        className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === 'saved' ? 'text-vibe-accent' : 'text-vibe-muted'}`}
                        onClick={() => setProfileTab('saved')}
                      >
-                        Saved
+                        {t('saved')}
                      </button>
                   </div>
                   <div className="flex-1 w-full overflow-y-auto no-scrollbar">
@@ -476,7 +478,7 @@ function VibeSpace() {
                    <Ghost size={32} />
                 </div>
                 <h2 className="text-2xl font-bold tracking-tighter text-vibe-ink uppercase">{activeTab}</h2>
-                <p className="text-vibe-muted">This section is currently under construction. Check back soon for more vibes!</p>
+                <p className="text-vibe-muted">{t('appUnderConstruction')}</p>
               </div>
             )}
             </div>
@@ -572,10 +574,12 @@ function FloatingUploadIndicator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <UploadProvider>
-        <VibeSpace />
-      </UploadProvider>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <UploadProvider>
+          <VibeSpace />
+        </UploadProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
