@@ -404,12 +404,12 @@ function VibeSpace() {
              </button>
           </div>
 
-          <main className={`w-full h-full flex flex-col items-center justify-start overflow-y-auto no-scrollbar scroll-smooth md:pb-0 ${activeTab === 'Feed' ? 'snap-y snap-mandatory pb-0' : 'pb-[72px]'}`}>
+          <main className={`w-full h-full flex flex-col items-center justify-start no-scrollbar md:pb-0 ${activeTab === 'Feed' ? 'overflow-hidden pb-0' : 'overflow-y-auto scroll-smooth pb-[72px]'}`}>
             <div className={
               activeTab === 'Profile'
                 ? 'w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col'
                 : activeTab === 'Feed'
-                  ? 'w-full min-h-full flex flex-col'
+                  ? 'w-full h-full flex flex-col'
                   : 'w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col'
             }>
             {activeTab === 'Feed' ? (

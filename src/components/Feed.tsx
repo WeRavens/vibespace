@@ -238,9 +238,9 @@ export function Feed({
   }
 
   return (
-    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar">
+    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar scroll-smooth">
       {vibes.map((vibe, index) => (
-        <FeedItem
+        <MemoizedFeedItem
           key={vibe.id}
           vibe={vibe}
           onReact={handleReact}
@@ -254,6 +254,16 @@ export function Feed({
     </div>
   );
 }
+
+const MemoizedFeedItem = React.memo(FeedItem, (prevProps, nextProps) => {
+  return (
+    prevProps.vibe.id === nextProps.vibe.id &&
+    prevProps.vibe.viewsCount === nextProps.vibe.viewsCount &&
+    prevProps.hasSaved === nextProps.hasSaved &&
+    JSON.stringify(prevProps.vibe.reactions) === JSON.stringify(nextProps.vibe.reactions) &&
+    prevProps.vibe.comments?.length === nextProps.vibe.comments?.length
+  );
+});
 
 export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: FeedItemProps) {
   const { user } = useAuth();
@@ -320,7 +330,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
   };
 
   return (
-    <div ref={containerRef} className="relative h-[100dvh] w-full flex-shrink-0 snap-start bg-black overflow-hidden select-none" data-vibe-id={vibe.id}>
+    <div ref={containerRef} className="relative h-[100dvh] w-full flex-shrink-0 snap-start snap-always bg-black overflow-hidden select-none transform-gpu" data-vibe-id={vibe.id}>
       {/* Background Media */}
       <div className="absolute inset-0 h-full w-full pointer-events-none">
         {vibe.type === 'video' && vibe.mediaUrl ? (
