@@ -308,11 +308,11 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
         {vibe.type === 'video' && vibe.mediaUrl ? (
           <VideoBackdrop src={vibe.mediaUrl} />
         ) : vibe.type === 'photo' && vibe.mediaUrl ? (
-          <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-80" />
+          <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-100" />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-vibe-accent/10 via-black to-vibe-bg" />
+          <div className="h-full w-full bg-gradient-to-br from-vibe-accent/20 via-black to-vibe-bg" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
       </div>
 
       {/* Content Bottom Left */}
