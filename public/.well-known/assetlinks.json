@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.vibespace.app",
+      "sha256_cert_fingerprints": [
+        "57:71:0B:F3:B0:1E:EA:91:F1:78:5C:40:A5:11:5D:88:D9:4D:D4:61"
+      ]
+    }
+  }
+]

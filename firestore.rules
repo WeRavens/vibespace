@@ -76,7 +76,7 @@ service cloud.firestore {
     // -------------------------------------------------------------------------
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if false; // No blanket user listing
+      allow list: if isSignedIn();
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if (
           isOwner(userId) 
@@ -97,8 +97,7 @@ service cloud.firestore {
     // Vibes (Posts)
     // -------------------------------------------------------------------------
     match /vibes/{vibeId} {
-      // List vibes that haven't expired
-      allow list: if isSignedIn() && resource.data.expiresAt > request.time;
+      allow list: if isSignedIn();
       allow get: if isSignedIn();
       
       allow create: if isSignedIn() && isValidId(vibeId) && isValidVibe(incoming());
