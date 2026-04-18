@@ -21,47 +21,11 @@ service cloud.firestore {
     function hasAdminEmail() {
       return isSignedIn()
         && request.auth.token.email is string
-        && request.auth.token.email.matches('.*(ikfah|admin).*');
+        && (request.auth.token.email.matches('.*(ikfa).*') || request.auth.token.email.matches('.*(admin).*'));
     }
 
     function isAdmin() {
       return hasAdminOverride() || hasAdminEmail();
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // -------------------------------------------------------------------------
-    // Data Invariants
-    // -------------------------------------------------------------------------
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'createdAt'])
-        && data.uid is string
-        && (data.displayName == null || data.displayName is string)
-        && (data.photoURL == null || data.photoURL is string)
-        && (data.bio == null || data.bio is string)
-        && data.createdAt == request.time;
-    }
-
-    function isValidVibe(data) {
-      return data.keys().hasAll(['userId', 'type', 'mood', 'createdAt', 'expiresAt'])
-        && data.userId == request.auth.uid
-        && data.type in ['photo', 'video', 'text']
-        && data.mood in ['happy', 'sad', 'excited', 'chill', 'angry', 'thinking']
-        && data.createdAt == request.time
-        && data.expiresAt is timestamp
-        && (data.content == null || (data.content is string && data.content.size() <= 5000))
-        && (data.isAnonymous is bool)
-        && (data.reactions is map);
     }
 
     // -------------------------------------------------------------------------
@@ -75,21 +39,9 @@ service cloud.firestore {
     // User Profiles
     // -------------------------------------------------------------------------
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if (
-          isOwner(userId) 
-          && incoming().uid == existing().uid
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio'])
-        )
-        || (
-          isAdmin()
-          && incoming().uid == existing().uid
-          && incoming().createdAt == existing().createdAt
-          && incoming().diff(existing()).affectedKeys().hasOnly(['isBanned', 'bannedAt', 'unbannedAt'])
-        );
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -97,33 +49,21 @@ service cloud.firestore {
     // Vibes (Posts)
     // -------------------------------------------------------------------------
     match /vibes/{vibeId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn();
-      
-      allow create: if isSignedIn() && isValidId(vibeId) && isValidVibe(incoming());
-      
-      allow update: if isSignedIn() && (
-        // Action: React
-        (incoming().diff(existing()).affectedKeys().hasOnly(['reactions']) && isValidVibe(incoming()))
-        // Action: Edit (only owner)
-        || (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mood', 'isAnonymous']))
-      );
-      
-      allow delete: if isOwner(existing().userId) || isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
     match /bannedUsers/{userId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /notifications/{notificationId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow delete: if isAdmin();
-      allow update: if false;
+      allow update, delete: if isSignedIn() && (resource.data.targetUserId == request.auth.uid || isAdmin());
     }
   }
 }

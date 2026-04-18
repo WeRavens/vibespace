@@ -13,7 +13,7 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { Vibe } from "../lib/types";
+import { Vibe, MOODS } from "../lib/types";
 import { motion, AnimatePresence } from "motion/react";
 import {
   MessageCircle,
@@ -30,6 +30,9 @@ import {
   Play,
   Pause,
   Share2,
+  Eye,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "../lib/AuthContext";
@@ -93,19 +96,15 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
           return expiresAt > new Date();
         });
 
-        // Simple engagement/randomized algorithm
-        // Instead of completely chronological, we mix in pseudo-randomness simulating an algorithm
-        const algorithmSorted = validVibes.sort((a, b) => {
-          const scoreA =
-            (a.reactions ? Object.keys(a.reactions).length : 0) +
-            Math.random() * 5;
-          const scoreB =
-            (b.reactions ? Object.keys(b.reactions).length : 0) +
-            Math.random() * 5;
-          return scoreB - scoreA;
+        // Deterministic sorting to prevent "glitching" or jumping items
+        // We sort primarily by creation date for stability
+        const stableSorted = validVibes.sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
+          const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
+          return timeB - timeA;
         });
 
-        setVibes(algorithmSorted);
+        setVibes(stableSorted);
       },
       (error) => {
         console.warn(
@@ -125,61 +124,80 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
     const vibe = vibes.find((v) => v.id === vibeId);
     if (!vibe) return;
 
-    const currentUserReactions = { ...(vibe.userReactions || {}) };
-    const currentReactions = { ...(vibe.reactions || {}) };
+    // Optimistic UI update for immediate feedback
+    setVibes(prev => prev.map(v => {
+      if (v.id !== vibeId) return v;
+      const nextUserReactions = { ...(v.userReactions || {}) };
+      const nextReactions = { ...(v.reactions || {}) };
+      const existing = nextUserReactions[user.uid];
 
-    const existingReact = currentUserReactions[user.uid];
-
-    if (existingReact === emoji) {
-      // Undo react
-      delete currentUserReactions[user.uid];
-      const nextCount = Math.max(0, (currentReactions[emoji] || 1) - 1);
-      if (nextCount === 0) {
-        delete currentReactions[emoji];
+      if (existing === emoji) {
+        delete nextUserReactions[user.uid];
+        nextReactions[emoji] = Math.max(0, (nextReactions[emoji] || 1) - 1);
       } else {
-        currentReactions[emoji] = nextCount;
-      }
-    } else {
-      // Change or add react
-      if (existingReact) {
-        const previousCount = Math.max(
-          0,
-          (currentReactions[existingReact] || 1) - 1,
-        );
-        if (previousCount === 0) {
-          delete currentReactions[existingReact];
-        } else {
-          currentReactions[existingReact] = previousCount;
+        if (existing) {
+          nextReactions[existing] = Math.max(0, (nextReactions[existing] || 1) - 1);
         }
+        nextUserReactions[user.uid] = emoji;
+        nextReactions[emoji] = (nextReactions[emoji] || 0) + 1;
       }
-      currentUserReactions[user.uid] = emoji;
-      currentReactions[emoji] = (currentReactions[emoji] || 0) + 1;
-      
-      // Fire notification if not reacting to own post
-      if (vibe.userId !== user.uid) {
-        try {
-           await addDoc(collection(db, "notifications"), {
-             targetUserId: vibe.userId,
-             actorId: user.uid,
-             actorName: user.displayName || "Anonymous",
-             type: 'react',
-             vibeId: vibe.id,
-             text: emoji,
-             createdAt: serverTimestamp(),
-             read: false
-           });
-        } catch (e) { console.error("Could not send notification", e); }
-      }
-    }
+      return { ...v, userReactions: nextUserReactions, reactions: nextReactions };
+    }));
 
     if (Capacitor.isNativePlatform()) {
       Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
     }
 
-    await updateDoc(doc(db, "vibes", vibeId), {
-      reactions: currentReactions,
-      userReactions: currentUserReactions,
-    });
+    try {
+      const { runTransaction, doc } = await import('firebase/firestore');
+      await runTransaction(db, async (transaction) => {
+        const vibeDoc = await transaction.get(doc(db, "vibes", vibeId));
+        if (!vibeDoc.exists()) return;
+
+        const data = vibeDoc.data();
+        const userReactions = { ...(data.userReactions || {}) };
+        const reactions = { ...(data.reactions || {}) };
+        const existing = userReactions[user.uid];
+
+        if (existing === emoji) {
+          delete userReactions[user.uid];
+          reactions[emoji] = Math.max(0, (reactions[emoji] || 1) - 1);
+          if (reactions[emoji] === 0) delete reactions[emoji];
+        } else {
+          if (existing) {
+            reactions[existing] = Math.max(0, (reactions[existing] || 1) - 1);
+            if (reactions[existing] === 0) delete reactions[existing];
+          }
+          userReactions[user.uid] = emoji;
+          reactions[emoji] = (reactions[emoji] || 0) + 1;
+        }
+
+        transaction.update(doc(db, "vibes", vibeId), {
+          reactions,
+          userReactions
+        });
+
+        // Notifications (non-blocking)
+        if (data.userId !== user.uid && existing !== emoji) {
+           addDoc(collection(db, "notifications"), {
+             targetUserId: data.userId,
+             actorId: user.uid,
+             actorName: user.displayName || "Anonymous",
+             type: 'react',
+             vibeId: vibeId,
+             text: emoji,
+             createdAt: serverTimestamp(),
+             read: false
+           }).catch(() => {});
+        }
+      });
+    } catch (e: any) {
+      console.error("Emoji update failed:", e);
+      // If it fails (like permission denied), the next onSnapshot will naturally revert the UI
+      if (e.code === 'permission-denied') {
+        alert("Permission denied: You can only react if logged in.");
+      }
+    }
   };
 
   const filteredVibes = vibes.filter((v) => {
@@ -225,9 +243,10 @@ export function Feed({ userFilter, initialVibeId, activeMood, onOpenProfile }: {
     let result = firstPageVibes.map(v => ({ ...v, uniqueKey: v.id + '-0' }));
     
     for (let i = 1; i < pageMultiplier; i++) {
-        // Pseudo-random shuffle based on engagement + pure chaos
-        const shuffled = [...filteredVibes].sort(() => Math.random() - 0.5);
-        result = result.concat(shuffled.map((v, index) => ({ ...v, uniqueKey: v.id + '-' + i + '-' + index })));
+        // Use a more stable "shuffled" order for repeated pages
+        // We sort by ID + index to keep it consistent between renders
+        const stableRepeat = [...filteredVibes].sort((a, b) => a.id.localeCompare(b.id));
+        result = result.concat(stableRepeat.map((v, index) => ({ ...v, uniqueKey: v.id + '-' + i + '-' + index })));
     }
     return result;
   }, [filteredVibes, pageMultiplier, initialVibeId, fetchedInitialVibe]);
@@ -285,6 +304,18 @@ function VibeCard({
   key?: React.Key;
   onOpenProfile?: (id: string) => void;
 }) {
+  const [showMoodAnim, setShowMoodAnim] = useState(false);
+  const moodEmoji = MOODS.find(m => m.id === vibe.mood)?.emoji;
+
+  useEffect(() => {
+    const hasSeenKey = `vibe-seen-${vibe.id}`;
+    if (!localStorage.getItem(hasSeenKey)) {
+      setShowMoodAnim(true);
+      localStorage.setItem(hasSeenKey, 'true');
+      const timer = setTimeout(() => setShowMoodAnim(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [vibe.id]);
   const timeStr = vibe.createdAt
     ? formatDistanceToNow(
         vibe.createdAt?.toDate?.() || new Date(vibe.createdAt),
@@ -293,6 +324,7 @@ function VibeCard({
   const totalReactions = vibe.reactions
     ? Object.values(vibe.reactions).reduce((a, b) => a + b, 0)
     : 0;
+  const viewsCount = (vibe as any).viewsCount || 0;
   const sortedReactions = Object.entries(vibe.reactions || {})
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1]);
@@ -303,6 +335,31 @@ function VibeCard({
   const [commentText, setCommentText] = useState("");
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showAllReactions, setShowAllReactions] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!cardRef.current || !db) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          // Count view after 2 seconds of being active
+          const timer = setTimeout(async () => {
+            const { increment } = await import('firebase/firestore');
+            updateDoc(doc(db, "vibes", vibe.id), {
+              viewsCount: increment(1)
+            }).catch(() => {});
+          }, 2000);
+          return () => clearTimeout(timer);
+        }
+      },
+      { threshold: 0.7 }
+    );
+
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [vibe.id]);
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -434,200 +491,209 @@ function VibeCard({
 
   return (
     <motion.div
+      ref={cardRef}
       layout
+      data-vibe-id={vibe.id}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="relative h-[calc(100dvh-72px)] md:h-[85vh] w-full snap-start sm:snap-center overflow-hidden sm:rounded-2xl border-vibe-line sm:border bg-[#111] shadow-[0_40px_100px_rgba(0,0,0,0.8)]"
+      className="relative h-[calc(100dvh-72px)] md:h-[85vh] w-full max-w-4xl mx-auto snap-start sm:snap-center overflow-hidden sm:rounded-[40px] border-vibe-line sm:border bg-[#050505] shadow-[0_40px_100px_rgba(0,0,0,0.8)] group/card"
     >
       {vibe.mediaUrl ? (
         vibe.type === "video" ? (
           <VideoBackdrop src={vibe.mediaUrl} />
         ) : (
-          <div className="absolute inset-0 bg-black">
+          <div className="absolute inset-0 bg-black flex items-center justify-center">
             <img
               src={vibe.mediaUrl}
               alt="Vibe Content"
               loading="lazy"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-contain"
+              className="w-full h-full object-contain transition-transform duration-700 group-hover/card:scale-105"
             />
           </div>
         )
       ) : (
-        <div className="absolute inset-0 w-full h-full bg-[#111]" />
+        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#1a1a1a] to-[#050505]" />
       )}
 
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none" />
-      <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end p-8 sm:pb-8 pb-10">
-        <div className="md:w-3/4 flex max-h-full flex-col">
-          {vibe.isAnonymous && (
-            <div className="pointer-events-auto mb-4 inline-flex self-start rounded bg-vibe-muted/30 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-sm">
-              Anonymous Vibe
+      <AnimatePresence>
+        {showMoodAnim && moodEmoji && (
+          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center">
+            <div className="text-9xl animate-melt select-none" style={{ textShadow: "0 0 60px rgba(0,255,209,0.4)" }}>
+              {moodEmoji}
             </div>
-          )}
+          </div>
+        )}
+      </AnimatePresence>
 
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar
+      <div className="absolute inset-x-0 bottom-0 h-[50%] bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+
+      {/* Premium Content Layout */}
+      <div className="absolute inset-0 z-10 flex flex-col md:flex-row pointer-events-none">
+        <div className="flex-1 flex flex-col justify-end p-6 md:p-14 sm:pb-8 pb-12">
+          <div className="max-w-[90%] md:max-w-2xl">
+            {/* User Header */}
+            <div className="flex items-center space-x-4 mb-8">
+               <Avatar
                 src={!vibe.isAnonymous ? vibe.authorPhoto : undefined}
                 name={vibe.isAnonymous ? "SecretViber" : vibe.authorName}
-                className="h-10 w-10 border border-vibe-ink"
-                textClassName="text-sm"
+                className="h-12 w-12 border-2 border-white/20 shadow-xl"
+                textClassName="text-base font-black"
               />
-              <div className="flex-1 min-w-0">
+              <div className="flex-1">
                 <div 
-                  className="pointer-events-auto block cursor-pointer truncate font-serif font-bold tracking-tight text-white transition-colors hover:text-vibe-accent"
+                  className="pointer-events-auto cursor-pointer font-extrabold text-white text-xl tracking-tight hover:text-vibe-accent transition-all active:scale-95"
                   onClick={(e) => { e.stopPropagation(); onOpenProfile?.(vibe.userId); }}
                 >
                   {vibe.isAnonymous ? "SecretViber" : vibe.authorName}
                 </div>
-                <div className="text-[10px] text-vibe-muted uppercase tracking-widest font-mono">
+                <div className="text-[10px] text-white/40 font-black uppercase tracking-[0.25em] mt-0.5">
                   {timeStr}
                 </div>
               </div>
             </div>
 
-            <div className="text-vibe-muted font-bold tracking-tight bg-black/40 backdrop-blur-md rounded-full p-2 border border-white/10">
-              {(vibe as any).isPermanent ? <InfinityIcon size={16} title="Permanent" /> : <Clock size={16} title="24h Left" />}
+            {/* Content Text */}
+            <div className="mb-8 pointer-events-auto">
+              <h2
+                onClick={() => vibe.content.length > 80 && setIsExpanded(!isExpanded)}
+                className={cn(
+                  "text-white leading-[1.3] font-bold tracking-tight drop-shadow-2xl selection:bg-vibe-accent/30 transition-all duration-300",
+                  vibe.content.length > 60 ? "text-lg sm:text-2xl" : "text-2xl sm:text-3xl",
+                  !isExpanded && vibe.content.length > 80 ? "line-clamp-3" : ""
+                )}
+              >
+                 {vibe.content}
+              </h2>
+              {vibe.content.length > 80 && (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="mt-2 text-vibe-accent text-[9px] font-bold uppercase tracking-[0.15em] opacity-80 hover:opacity-100 transition-opacity"
+                >
+                  {isExpanded ? "Show Less" : "Read More"}
+                </button>
+              )}
             </div>
-          </div>
 
-          <h2 className="caption-serif mb-6 text-vibe-ink">{vibe.content}</h2>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-vibe-ink font-bold">
-                <span className="neon-dot"></span>
-                <span>{totalReactions} Vibes</span>
+            {/* Meta Info Badges */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center space-x-2.5 text-xs text-vibe-accent font-black bg-vibe-accent/10 px-5 py-3 rounded-full border border-vibe-accent/20 backdrop-blur-2xl shadow-lg">
+                <span className="h-1.5 w-1.5 rounded-full bg-vibe-accent animate-pulse shadow-[0_0_8px_rgba(0,255,209,0.8)]"></span>
+                <span className="uppercase tracking-[0.1em]">{totalReactions} Vibes</span>
               </div>
+
+              <div className="flex items-center space-x-2 text-xs text-white/90 font-bold bg-white/5 px-5 py-3 rounded-full border border-white/10 backdrop-blur-2xl">
+                <Eye size={14} className="text-vibe-accent" />
+                <span className="font-mono tracking-tighter">{viewsCount}</span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowComments(true)}
-                className="pointer-events-auto flex flex-col items-center justify-center text-vibe-muted transition-colors hover:text-vibe-accent"
-                title="Comments"
+                className="pointer-events-auto flex items-center space-x-2.5 text-white/90 transition-all hover:bg-white/10 hover:border-white/20 bg-white/5 px-5 py-3 rounded-full border border-white/10 backdrop-blur-2xl group/btn"
               >
-                <MessageCircle size={22} className="mb-0.5" />
-                <span className="text-[10px] font-bold">
-                  {vibe.comments?.length || 0}
-                </span>
+                <MessageCircle size={16} className="group-hover/btn:text-vibe-accent transition-colors" />
+                <span className="text-xs font-black">{vibe.comments?.length || 0}</span>
               </button>
-            </div>
 
-            <div className="pointer-events-auto flex space-x-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full border transition-all",
-                  hasSaved
-                    ? "border-vibe-accent bg-vibe-accent/20 text-vibe-accent shadow-[0_0_15px_rgba(0,255,209,0.3)]"
-                    : "border-vibe-line bg-vibe-ink/5 text-vibe-muted hover:text-white",
-                )}
-                title={hasSaved ? "Unsave Post" : "Save Post"}
-              >
-                <Bookmark
-                  size={16}
-                  className={hasSaved ? "fill-current" : ""}
-                />
-              </button>
-              {canDelete && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-red-900 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-md hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]"
-                  title="Hapus Postingan"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-              {isAdmin && !isOwner && (
-                <button
-                  type="button"
-                  onClick={handleBanUser}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-vibe-line bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-white transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)]"
-                  title="Ban User"
-                >
-                  <ShieldAlert size={16} />
-                </button>
+              {vibe.mood && (
+                <div className="flex items-center space-x-2 text-[10px] text-white/80 font-bold bg-white/5 px-4 py-3 rounded-full border border-white/5 backdrop-blur-2xl uppercase tracking-widest">
+                  <span className="w-1 h-1 rounded-full bg-vibe-accent/50"></span>
+                  <span>{vibe.mood}</span>
+                </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Floating Side Actions for Desktop */}
+        <div className="hidden md:flex flex-col justify-end p-12 pb-14 space-y-4">
+           <button
+             onClick={handleSave}
+             className={cn(
+               "pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center border transition-all hover:scale-110 active:scale-90 shadow-2xl backdrop-blur-xl",
+               hasSaved ? "bg-vibe-accent/20 border-vibe-accent text-vibe-accent shadow-[0_0_20px_rgba(0,255,209,0.2)]" : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+             )}
+           >
+             <Bookmark size={24} className={hasSaved ? "fill-current" : ""} />
+           </button>
+           <button
+             onClick={handleShare}
+             className="pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center border bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all hover:scale-110 active:scale-90 shadow-2xl backdrop-blur-xl"
+           >
+             <Share2 size={24} />
+           </button>
+        </div>
       </div>
 
-      <div className="absolute bottom-24 right-4 z-20 flex flex-col items-end gap-2">
-        <AnimatePresence>
-          {showAllReactions && sortedReactions.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              className="flex max-w-[75vw] flex-wrap justify-end gap-2 rounded-3xl border border-white/15 bg-black/70 p-3 backdrop-blur-xl"
-            >
-              {sortedReactions.map(([emoji, count]) => (
+      <div className="absolute bottom-24 right-4 z-20 flex flex-col items-end gap-3">
+        {/* Reaction List - Vertical Stack */}
+        <div className="flex flex-col items-center gap-2 pointer-events-none">
+          <AnimatePresence>
+            {showAllReactions && sortedReactions.length > 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.8 }}
+                className="flex flex-col items-center gap-2 mb-1"
+              >
+                {sortedReactions.slice(1).reverse().map(([emoji, count]) => (
+                  <button
+                    key={`all-${emoji}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReact(vibe.id, emoji);
+                    }}
+                    className={cn(
+                      "pointer-events-auto relative flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/40 backdrop-blur-xl text-lg transition-all hover:scale-110 shadow-lg",
+                      currentUser && vibe.userReactions?.[currentUser.uid] === emoji
+                        ? "border-vibe-accent bg-vibe-accent/20"
+                        : "",
+                    )}
+                  >
+                    <span>{emoji}</span>
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-white px-1 text-[8px] font-black text-black">
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Top Emoji & Toggle */}
+          <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
+             {sortedReactions.length > 1 && (
+               <button
+                 onClick={(e) => { e.stopPropagation(); setShowAllReactions(!showAllReactions); }}
+                 className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 border border-white/10 text-white/70 hover:text-vibe-accent transition-all"
+               >
+                 {showAllReactions ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+               </button>
+             )}
+
+             {sortedReactions.length > 0 && (
                 <button
-                  key={`all-${emoji}`}
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
-                    onReact(vibe.id, emoji);
-                    setShowAllReactions(false);
+                    onReact(vibe.id, sortedReactions[0][0]);
                   }}
                   className={cn(
-                    "relative flex min-w-[44px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 py-2 text-lg text-white backdrop-blur-md transition-transform hover:scale-105",
-                    currentUser && vibe.userReactions?.[currentUser.uid] === emoji
-                      ? "border-vibe-accent bg-vibe-accent/20 shadow-[0_0_18px_rgba(0,255,209,0.22)]"
+                    "relative flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-black/60 backdrop-blur-2xl text-2xl transition-all hover:scale-105 shadow-xl",
+                    currentUser && vibe.userReactions?.[currentUser.uid] === sortedReactions[0][0]
+                      ? "border-vibe-accent bg-vibe-accent/25 shadow-[0_0_20px_rgba(0,255,209,0.3)]"
                       : "",
                   )}
-                  title={`React with ${emoji}`}
                 >
-                  <span>{emoji}</span>
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-black">
-                    {count}
+                  <span>{sortedReactions[0][0]}</span>
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-black text-black shadow-md">
+                    {sortedReactions[0][1]}
                   </span>
                 </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex max-w-[75vw] flex-wrap justify-end gap-2">
-          {visibleReactions.map(([emoji, count]) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onReact(vibe.id, emoji);
-              }}
-              className={cn(
-                "relative flex min-w-[42px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 py-2 text-base text-white backdrop-blur-md transition-transform hover:scale-105",
-                currentUser && vibe.userReactions?.[currentUser.uid] === emoji
-                  ? "border-vibe-accent bg-vibe-accent/20 shadow-[0_0_18px_rgba(0,255,209,0.22)]"
-                  : "",
-              )}
-              title={`React with ${emoji}`}
-            >
-              <span>{emoji}</span>
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-black">
-                {count}
-              </span>
-            </button>
-          ))}
-          {hiddenReactions.length > 0 && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setShowAllReactions((prev) => !prev);
-              }}
-              className="flex h-10 min-w-[42px] items-center justify-center rounded-full border border-white/15 bg-black/55 px-3 text-sm font-bold tracking-[0.2em] text-white backdrop-blur-md transition-transform hover:scale-105"
-              title="Lihat semua emoji"
-            >
-              ...
-            </button>
-          )}
+             )}
+          </div>
         </div>
 
         <AnimatePresence>
@@ -788,6 +854,20 @@ function VideoBackdrop({ src }: { src: string }) {
 
     if (isVisible && isReady && !hasError && !isManuallyPaused) {
       void video.play().catch(() => {});
+
+      // Increment view count if visible for more than 1s
+      const timer = setTimeout(async () => {
+         if (isVisible && db) {
+            const { increment } = await import('firebase/firestore');
+            const vibeId = (video as any).closest('[data-vibe-id]')?.getAttribute('data-vibe-id');
+            if (vibeId) {
+              updateDoc(doc(db, "vibes", vibeId), {
+                viewsCount: increment(1)
+              }).catch(() => {});
+            }
+         }
+      }, 1500);
+      return () => clearTimeout(timer);
     } else {
       video.pause();
     }

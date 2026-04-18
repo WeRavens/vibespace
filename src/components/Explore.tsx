@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Search } from 'lucide-react';
-import { Vibe } from '../lib/types';
-import { motion } from 'motion/react';
+import { Vibe, MOODS } from '../lib/types';
+import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../lib/LanguageContext';
 import { Avatar } from './Avatar';
+import { Play, X } from 'lucide-react';
+import { Feed } from './Feed';
 
 export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => void }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<{ users: any[], posts: Vibe[] }>({ users: [], posts: [] });
   const [loading, setLoading] = useState(true);
+  const [selectedVibe, setSelectedVibe] = useState<Vibe | null>(null);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -86,7 +89,7 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
                   />
                   <div>
                     <div className="font-bold text-white">{u.displayName}</div>
-                    <div className="text-xs font-mono text-vibe-muted">{u.email}</div>
+                    <div className="text-xs font-mono text-vibe-muted">@{u.displayName?.toLowerCase().replace(/\s+/g, '') || u.uid.substring(0,6)}</div>
                   </div>
                 </div>
               ))}
@@ -97,15 +100,31 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
         {!loading && results.posts.length > 0 && (
           <div>
             <h3 className="text-xs uppercase tracking-widest text-vibe-muted font-bold mb-4">{t('vibes')}</h3>
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {results.posts.map(post => (
-                <div key={post.id} className="relative h-64 rounded-3xl overflow-hidden border border-vibe-line bg-[#111]">
+                <div
+                  key={post.id}
+                  onClick={() => setSelectedVibe(post)}
+                  className="relative aspect-[2/3] rounded-xl overflow-hidden border border-vibe-line bg-[#111] cursor-pointer hover:border-vibe-accent transition-all group"
+                >
                   {post.mediaUrl ? (
-                    <img src={post.mediaUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" />
-                  ) : <div className="absolute inset-0 bg-[#0a0a0a]" />}
-                  <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black to-transparent">
-                    <div className="font-bold text-white shadow-black">{post.authorName}</div>
-                    <div className="text-sm text-vibe-muted line-clamp-2 mt-2">{post.content}</div>
+                    post.type === 'video' ? (
+                      <>
+                        <video src={`${post.mediaUrl}#t=0.1`} className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+                           <Play size={20} className="text-white fill-current opacity-60 group-hover:opacity-100" />
+                        </div>
+                      </>
+                    ) : (
+                      <img src={post.mediaUrl} className="absolute inset-0 w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center p-3 text-center bg-[#0a0a0a]">
+                      <p className="text-[10px] text-vibe-muted font-serif line-clamp-4 italic">"{post.content}"</p>
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                     <p className="text-[10px] font-bold text-white truncate">{post.authorName}</p>
                   </div>
                 </div>
               ))}
@@ -113,6 +132,26 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {selectedVibe && (
+           <motion.div
+             initial={{ opacity: 0, y: 100 }}
+             animate={{ opacity: 1, y: 0 }}
+             exit={{ opacity: 0, y: 100 }}
+             className="fixed inset-0 z-[60] bg-vibe-bg overflow-hidden flex flex-col"
+           >
+             <div className="absolute left-0 right-0 top-0 z-[70] flex items-center justify-start p-4 md:justify-end">
+                <button onClick={() => setSelectedVibe(null)} className="p-3 bg-black/50 rounded-full text-white hover:text-vibe-accent border border-vibe-line backdrop-blur-md">
+                   <X size={24} />
+                </button>
+             </div>
+             <div className="flex-1 w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative">
+                <Feed initialVibeId={selectedVibe.id} />
+             </div>
+           </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

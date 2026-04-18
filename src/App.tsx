@@ -470,7 +470,7 @@ function VibeSpace() {
                        )}
                     </div>
                     <p className="text-vibe-muted font-bold text-sm sm:text-base mt-1 truncate drop-shadow-md">
-                       @{viewingUser.email?.split('@')[0] || viewingUser.uid.substring(0,6)}
+                       @{viewingUser.displayName?.toLowerCase().replace(/\s+/g, '') || viewingUser.uid.substring(0,6)}
                     </p>
                     <p className="text-vibe-muted text-xs sm:text-sm mt-1 truncate drop-shadow-md">
                        <span className="text-white font-bold">{userStats.video}</span> {t('postCountLabel')} • <span className="text-white font-bold">{userStats.vibes}</span> {t('vibesLabel')}

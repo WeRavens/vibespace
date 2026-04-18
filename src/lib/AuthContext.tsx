@@ -66,51 +66,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        console.log("Checking for redirect result...");
         const redirectResult = await getRedirectResult(auth);
         if (redirectResult?.user) {
           console.log("Redirect login completed for:", redirectResult.user.uid);
           setUser(redirectResult.user);
+        } else {
+          console.log("No redirect result found.");
         }
       } catch (e) {
-        console.error("Redirect login failed:", e);
+        console.error("Redirect login failed (catch):", e);
+        if (e instanceof Error) {
+          console.error("Error message:", e.message);
+          if ('code' in e) console.error("Error code:", (e as any).code);
+        }
         alert("Login Google gagal diselesaikan setelah kembali ke aplikasi.");
       }
 
       unsubscribe = onAuthStateChanged(auth, async (u) => {
-        console.log("Auth state changed:", u ? u.uid : "null");
+        console.log("Auth state changed - Raw user:", u ? { uid: u.uid, email: u.email, isAnonymous: u.isAnonymous } : "null");
         if (u) {
           setUser(u);
           try {
             if (!db) {
+              console.error("Firestore DB not initialized during auth state change");
               setLoading(false);
               return;
             }
 
+            console.log("Checking user document in Firestore for:", u.uid);
             // Ensure user doc exists
             const userRef = doc(db, 'users', u.uid);
             const userSnap = await getDoc(userRef);
 
             if (!userSnap.exists()) {
-              console.log("Creating new user doc for:", u.uid);
+              console.log("User doc does not exist, creating for:", u.uid);
               await setDoc(userRef, {
                 uid: u.uid,
                 displayName: u.displayName,
                 photoURL: u.photoURL,
+                email: u.email,
                 bio: '',
                 createdAt: serverTimestamp(),
               });
-            } else if (userSnap.data().isBanned) {
-              alert('Maaf, akunmu telah di-banned oleh Admin karena melanggar pedoman komunitas.');
-              await signOut(auth);
-              setUser(null);
-              setLoading(false);
-              return;
+              console.log("User doc created successfully");
+            } else {
+              console.log("User doc exists:", userSnap.data());
+              if (userSnap.data().isBanned) {
+                alert('Maaf, akunmu telah di-banned oleh Admin karena melanggar pedoman komunitas.');
+                await signOut(auth);
+                setUser(null);
+                setLoading(false);
+                return;
+              }
             }
 
             // Also check bannedUsers collection as a secondary safeguard
             const bannedRef = doc(db, 'bannedUsers', u.uid);
             const bannedSnap = await getDoc(bannedRef);
             if (bannedSnap.exists()) {
+              console.log("User found in bannedUsers collection:", u.uid);
               alert('Maaf, akunmu telah di-banned oleh Admin karena melanggar pedoman komunitas.');
               await signOut(auth);
               setUser(null);
@@ -121,7 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch (error) {
             // Don't block a successful Firebase Auth sign-in just because
             // the profile bootstrap/read in Firestore failed.
-            console.error("Error in auth state change handler:", error);
+            console.error("Critical error in Firestore user check:", error);
+            if (error instanceof Error) {
+              console.error("Error message:", error.message);
+              console.error("Error stack:", error.stack);
+            }
           }
         } else {
           setUser(null);
