@@ -373,23 +373,21 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
                   <span>{vibe.mood}</span>
                </div>
              )}
-          </div>
 
-          {/* Moderation Row */}
-          {canDelete && (
-            <div className="flex items-center space-x-2 pointer-events-auto">
-               <button onClick={handleDelete} className="flex items-center space-x-1.5 text-[9px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-md hover:bg-red-500/20">
-                  <Trash2 size={10} />
-                  <span>Hapus</span>
-               </button>
-               {isAdmin && !isOwner && (
-                 <button className="flex items-center space-x-1.5 text-[9px] font-black uppercase tracking-widest text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-full border border-yellow-500/20 backdrop-blur-md">
+             {/* Inline Moderation */}
+             {canDelete && (
+                <button onClick={handleDelete} className="flex items-center space-x-1.5 text-[9px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-md hover:bg-red-500/20">
+                   <Trash2 size={10} />
+                   <span>Hapus</span>
+                </button>
+             )}
+             {isAdmin && !isOwner && (
+                <button className="flex items-center space-x-1.5 text-[9px] font-black uppercase tracking-widest text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-full border border-yellow-500/20 backdrop-blur-md">
                    <ShieldAlert size={10} />
                    <span>Ban</span>
-                 </button>
-               )}
-            </div>
-          )}
+                </button>
+             )}
+          </div>
         </div>
       </div>
 
