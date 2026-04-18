@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, limit, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Search } from 'lucide-react';
 import { Vibe } from '../lib/types';
-import { Feed } from './Feed';
-import { useAuth } from '../lib/AuthContext';
 import { motion } from 'motion/react';
 import { useLanguage } from '../lib/LanguageContext';
 import { Avatar } from './Avatar';
@@ -13,7 +11,6 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<{ users: any[], posts: Vibe[] }>({ users: [], posts: [] });
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -50,34 +47,6 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
     return () => clearTimeout(debounce);
   }, [searchTerm]);
 
-  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (searchTerm === 'MyAdmin') {
-        const pwd = window.prompt("Enter Admin Password:");
-        if (pwd === "Dexter77x") {
-          if (user) {
-            await updateDoc(doc(db, 'users', user.uid), { overrideAdmin: true });
-            alert("System Override: Admin privileges granted! Welcome, Commander.");
-            window.location.reload();
-          }
-        } else if (pwd) {
-          alert("Access Denied: Incorrect Password.");
-        }
-      } else if (searchTerm === 'userx') {
-        const pwd = window.prompt("Enter password:");
-        if (pwd === 'y') {
-          if (user) {
-            await updateDoc(doc(db, 'users', user.uid), { overrideAdmin: false });
-            alert("Mode Admin dinonaktifkan. Kamu sekarang adalah user biasa.");
-            window.location.reload();
-          }
-        } else if (pwd) {
-          alert("Password salah.");
-        }
-      }
-    }
-  };
-
   return (
     <div className="w-full h-full flex flex-col p-4 md:p-8 overflow-y-auto no-scrollbar">
       <div className="sticky top-0 bg-[#050505] z-10 pt-4 pb-6">
@@ -87,7 +56,6 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
             placeholder={t('searchUsersOrVibes')} 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            onKeyDown={handleKeyDown}
             className="w-full bg-[#111] border border-vibe-line rounded-full py-4 pl-12 pr-6 text-white focus:outline-none focus:border-vibe-accent shadow-[0_0_20px_rgba(0,255,209,0.1)] transition-colors"
           />
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-vibe-muted" />
