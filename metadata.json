@@ -1,0 +1,6 @@
+{
+  "name": "VibeSpace",
+  "description": "A social media platform for real-time, spontaneous, and authentic expression based on your mood.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["Real-time Posts", "Mood-based Feed", "Anonymous Mode"]
+}

@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // -------------------------------------------------------------------------
+    // Data Invariants
+    // -------------------------------------------------------------------------
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'createdAt'])
+        && data.uid is string
+        && (data.displayName == null || data.displayName is string)
+        && (data.photoURL == null || data.photoURL is string)
+        && (data.bio == null || data.bio is string)
+        && data.createdAt == request.time;
+    }
+
+    function isValidVibe(data) {
+      return data.keys().hasAll(['userId', 'type', 'mood', 'createdAt', 'expiresAt'])
+        && data.userId == request.auth.uid
+        && data.type in ['photo', 'video', 'text']
+        && data.mood in ['happy', 'sad', 'excited', 'chill', 'angry', 'thinking']
+        && data.createdAt == request.time
+        && data.expiresAt is timestamp
+        && (data.content == null || (data.content is string && data.content.size() <= 5000))
+        && (data.isAnonymous is bool)
+        && (data.reactions is map);
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Deny
+    // -------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // User Profiles
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // No blanket user listing
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) 
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio'])
+        );
+      allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Vibes (Posts)
+    // -------------------------------------------------------------------------
+    match /vibes/{vibeId} {
+      // List vibes that haven't expired
+      allow list: if isSignedIn() && resource.data.expiresAt > request.time;
+      allow get: if isSignedIn();
+      
+      allow create: if isSignedIn() && isValidId(vibeId) && isValidVibe(incoming());
+      
+      allow update: if isSignedIn() && (
+        // Action: React
+        (incoming().diff(existing()).affectedKeys().hasOnly(['reactions']) && isValidVibe(incoming()))
+        // Action: Edit (only owner)
+        || (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mood', 'isAnonymous']))
+      );
+      
+      allow delete: if isOwner(existing().userId);
+    }
+  }
+}

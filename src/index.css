@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: "Georgia", serif;
+  
+  --color-vibe-bg: #050505;
+  --color-vibe-ink: #FFFFFF;
+  --color-vibe-accent: #00FFD1;
+  --color-vibe-muted: #666666;
+  --color-vibe-glass: rgba(255, 255, 255, 0.05);
+  --color-vibe-line: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  body {
+    @apply bg-vibe-bg text-vibe-ink font-sans selection:bg-vibe-accent/30 overflow-hidden;
+  }
+}
+
+.neon-dot {
+  @apply w-2 h-2 rounded-full bg-vibe-accent;
+  box-shadow: 0 0 10px var(--color-vibe-accent);
+}
+
+.editorial-card {
+  @apply rounded-[32px] border border-vibe-line bg-[#111] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)];
+}
+
+.caption-serif {
+  @apply font-serif italic text-2xl leading-tight;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+

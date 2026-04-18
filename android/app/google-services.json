@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "310245625123",
+    "project_id": "vibespace-eedce",
+    "storage_bucket": "vibespace-eedce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310245625123:android:bdd366fcbbf430a7741096",
+        "android_client_info": {
+          "package_name": "com.vibespace.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "310245625123-lda4laonvc8hqehevbuaeon0vvs1ufbc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vibespace.app",
+            "certificate_hash": "57710bf3b01eea91f1785c40a5115d88d94dd461"
+          }
+        },
+        {
+          "client_id": "310245625123-5ab0o2pvur6kkr6dlvu5qdhkdcvd81i7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-QJAh6bKsyjHV972wVsbY5Gfrt8xi32w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "310245625123-5ab0o2pvur6kkr6dlvu5qdhkdcvd81i7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
