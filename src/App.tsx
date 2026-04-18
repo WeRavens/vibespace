@@ -43,7 +43,7 @@ function VibeSpace() {
   const [editBioMode, setEditBioMode] = useState(false);
   const [newBio, setNewBio] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [overrideAdmin, setOverrideAdmin] = useState<boolean | undefined>(undefined);
+  const [isExplicitAdmin, setIsExplicitAdmin] = useState(false);
   const [isProfileViewerOpen, setIsProfileViewerOpen] = useState(false);
   const bioMaxLength = 80;
   
@@ -105,28 +105,23 @@ function VibeSpace() {
 
   useEffect(() => {
     if (!user || !db) {
-      setOverrideAdmin(undefined);
+      setIsExplicitAdmin(false);
       return;
     }
 
     getDoc(doc(db, 'users', user.uid))
       .then((snap) => {
-        if (snap.exists()) {
-          setOverrideAdmin(snap.data()?.overrideAdmin);
-        } else {
-          setOverrideAdmin(undefined);
-        }
+        setIsExplicitAdmin(Boolean(snap.exists() && snap.data()?.overrideAdmin));
       })
       .catch((error) => {
         console.error('Error checking admin access', error);
-        setOverrideAdmin(undefined);
+        setIsExplicitAdmin(false);
       });
   }, [user?.uid]);
 
-  const emailCheck = (user?.email || '').toLowerCase().includes('ikfah') ||
-                     (user?.email || '').toLowerCase().includes('admin');
-
-  const isAdmin = overrideAdmin === true || (overrideAdmin !== false && emailCheck);
+  const isAdmin = (user?.email || '').toLowerCase().includes('ikfah') ||
+                  (user?.email || '').toLowerCase().includes('admin') ||
+                  isExplicitAdmin;
   const isViewingOwnProfile = viewingUser?.uid === user?.uid;
   const isViewingOtherProfile = Boolean(viewingUser?.uid && user?.uid && viewingUser.uid !== user.uid);
 
@@ -326,6 +321,10 @@ function VibeSpace() {
   useEffect(() => {
     if (activeTab === 'Profile' && !viewingUser) {
       setViewingUser(user);
+    } else if (activeTab !== 'Profile') {
+      // Reset viewingUser to self when navigating away from Profile tab,
+      // so next time we click Profile it shows our own.
+      setViewingUser(user);
     }
     if (activeTab !== 'Feed') {
       setFocusedVibeId(undefined);
@@ -358,6 +357,13 @@ function VibeSpace() {
     });
   }, [user?.uid]);
 
+  const handleTabChange = (tabId: string) => {
+    if (tabId === 'Profile') {
+      setViewingUser(user);
+    }
+    setActiveTab(tabId);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-vibe-bg">
@@ -382,7 +388,7 @@ function VibeSpace() {
       <FloatingUploadIndicator />
       <div className="flex-1 grid h-full w-full grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[280px_1fr_300px] gap-px bg-vibe-line">
         {/* Sidebar Left */}
-        <SidebarLeft activeTab={activeTab} setActiveTab={setActiveTab} activeMood={activeMood} setActiveMood={setActiveMood} />
+        <SidebarLeft activeTab={activeTab} setActiveTab={handleTabChange} activeMood={activeMood} setActiveMood={setActiveMood} />
         
         {/* Main Feed Container */}
         <div className="relative w-full h-full bg-[#050505] overflow-hidden">
@@ -639,7 +645,7 @@ function VibeSpace() {
                 if (Capacitor.isNativePlatform()) {
                   Haptics.selectionStart().catch(() => {});
                 }
-                setActiveTab(tab.id);
+                handleTabChange(tab.id);
               }}
               className={`p-2 transition-colors ${activeTab === tab.id ? 'text-vibe-accent' : 'text-vibe-muted'}`}
             >
