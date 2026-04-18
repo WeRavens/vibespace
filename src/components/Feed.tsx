@@ -262,6 +262,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
   const [isExpanded, setIsExpanded] = useState(false);
   const [showAllReactions, setShowAllReactions] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = (user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin');
   const isOwner = user?.uid === vibe.userId;
@@ -269,6 +270,23 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
 
   const content = vibe.content || "";
   const needsClamping = content.length > 120;
+
+  // View Tracking Logic
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const originalId = vibe.id.split('-repeat-')[0];
+    const vibeRef = doc(db, "vibes", originalId);
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        updateDoc(vibeRef, { viewsCount: increment(1) }).catch(err => console.error("View count error:", err));
+        observer.disconnect();
+      }
+    }, { threshold: 0.7 });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [vibe.id]);
 
   const sortedReactions = useMemo(() => {
     if (!vibe.reactions) return [];
@@ -302,7 +320,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
   };
 
   return (
-    <div className="relative h-[100dvh] w-full flex-shrink-0 snap-start bg-black overflow-hidden select-none" data-vibe-id={vibe.id}>
+    <div ref={containerRef} className="relative h-[100dvh] w-full flex-shrink-0 snap-start bg-black overflow-hidden select-none" data-vibe-id={vibe.id}>
       {/* Background Media */}
       <div className="absolute inset-0 h-full w-full pointer-events-none">
         {vibe.type === 'video' && vibe.mediaUrl ? (
@@ -475,7 +493,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
 
 function VideoBackdrop({ src }: { src: string }) {
   const [isReady, setIsReady] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
