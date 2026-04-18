@@ -51,16 +51,29 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
   }, [searchTerm]);
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchTerm === 'MyAdmin') {
-      const pwd = window.prompt("Enter Admin Password:");
-      if (pwd === "Dexter77x") {
-         if (user) {
+    if (e.key === 'Enter') {
+      if (searchTerm === 'MyAdmin') {
+        const pwd = window.prompt("Enter Admin Password:");
+        if (pwd === "Dexter77x") {
+          if (user) {
             await updateDoc(doc(db, 'users', user.uid), { overrideAdmin: true });
             alert("System Override: Admin privileges granted! Welcome, Commander.");
             window.location.reload();
-         }
-      } else if (pwd) {
-         alert("Access Denied: Incorrect Password.");
+          }
+        } else if (pwd) {
+          alert("Access Denied: Incorrect Password.");
+        }
+      } else if (searchTerm === 'userx') {
+        const pwd = window.prompt("Enter password:");
+        if (pwd === 'y') {
+          if (user) {
+            await updateDoc(doc(db, 'users', user.uid), { overrideAdmin: false });
+            alert("Mode Admin dinonaktifkan. Kamu sekarang adalah user biasa.");
+            window.location.reload();
+          }
+        } else if (pwd) {
+          alert("Password salah.");
+        }
       }
     }
   };

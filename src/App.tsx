@@ -43,7 +43,7 @@ function VibeSpace() {
   const [editBioMode, setEditBioMode] = useState(false);
   const [newBio, setNewBio] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [isExplicitAdmin, setIsExplicitAdmin] = useState(false);
+  const [overrideAdmin, setOverrideAdmin] = useState<boolean | undefined>(undefined);
   const [isProfileViewerOpen, setIsProfileViewerOpen] = useState(false);
   const bioMaxLength = 80;
   
@@ -105,24 +105,28 @@ function VibeSpace() {
 
   useEffect(() => {
     if (!user || !db) {
-      setIsExplicitAdmin(false);
+      setOverrideAdmin(undefined);
       return;
     }
 
     getDoc(doc(db, 'users', user.uid))
       .then((snap) => {
-        setIsExplicitAdmin(Boolean(snap.exists() && snap.data()?.overrideAdmin));
+        if (snap.exists()) {
+          setOverrideAdmin(snap.data()?.overrideAdmin);
+        } else {
+          setOverrideAdmin(undefined);
+        }
       })
       .catch((error) => {
         console.error('Error checking admin access', error);
-        setIsExplicitAdmin(false);
+        setOverrideAdmin(undefined);
       });
   }, [user?.uid]);
 
-  const isAdmin =
-    (user?.email || '').toLowerCase().includes('ikfah') ||
-    (user?.email || '').toLowerCase().includes('admin') ||
-    isExplicitAdmin;
+  const emailCheck = (user?.email || '').toLowerCase().includes('ikfah') ||
+                     (user?.email || '').toLowerCase().includes('admin');
+
+  const isAdmin = overrideAdmin === true || (overrideAdmin !== false && emailCheck);
   const isViewingOwnProfile = viewingUser?.uid === user?.uid;
   const isViewingOtherProfile = Boolean(viewingUser?.uid && user?.uid && viewingUser.uid !== user.uid);
 
