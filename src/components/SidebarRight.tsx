@@ -25,6 +25,16 @@ export function SidebarRight() {
            </div>
         </div>
       </div>
+      <div className="mt-auto pt-10 border-t border-vibe-line">
+        <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[2px] text-vibe-muted">
+          Support
+        </h3>
+        <p className="text-[10px] text-vibe-muted/60 leading-relaxed">
+          Butuh bantuan? Hubungi kami di:
+          <br />
+          <span className="text-vibe-accent">support@vibespace.app</span>
+        </p>
+      </div>
     </aside>
   );
 }

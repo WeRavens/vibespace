@@ -404,8 +404,14 @@ function VibeSpace() {
              </button>
           </div>
 
-          <main className="w-full h-full flex flex-col items-center justify-start overflow-y-auto no-scrollbar scroll-smooth snap-y snap-mandatory pb-[72px] md:pb-0">
-            <div className={activeTab === 'Profile' ? 'w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col' : 'w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col'}>
+          <main className={`w-full h-full flex flex-col items-center justify-start overflow-y-auto no-scrollbar scroll-smooth md:pb-0 ${activeTab === 'Feed' ? 'snap-y snap-mandatory pb-0' : 'pb-[72px]'}`}>
+            <div className={
+              activeTab === 'Profile'
+                ? 'w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col'
+                : activeTab === 'Feed'
+                  ? 'w-full min-h-full flex flex-col'
+                  : 'w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col'
+            }>
             {activeTab === 'Feed' ? (
               <Feed activeMood={activeMood} initialVibeId={focusedVibeId} onOpenProfile={handleOpenProfile} />
             ) : activeTab === 'Profile' && viewingUser ? (

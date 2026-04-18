@@ -124,6 +124,18 @@ export function Landing() {
               </button>
            </div>
         </div>
+
+        {/* Support Contact */}
+        <div className="mt-8 flex flex-col items-center space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-vibe-muted">Support & Feedback</p>
+          <a
+            href="mailto:newdexter7700@gmail.com"
+            className="group flex items-center space-x-2 rounded-full border border-white/5 bg-white/5 px-4 py-2 transition-all hover:border-vibe-accent/30 hover:bg-white/10"
+          >
+            <Mail size={12} className="text-vibe-accent group-hover:animate-pulse" />
+            <span className="text-[11px] font-medium text-white/60 group-hover:text-vibe-accent">newdexter7700@gmail.com</span>
+          </a>
+        </div>
       </motion.div>
 
       <div className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-3 opacity-50 pointer-events-none">

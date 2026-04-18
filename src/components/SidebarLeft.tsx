@@ -65,7 +65,13 @@ export function SidebarLeft({ activeTab, setActiveTab, activeMood, setActiveMood
           {MOODS.map(m => (
             <div 
               key={m.id}
-              className="px-3 py-1.5 rounded-full border border-vibe-muted text-[10px] uppercase tracking-wider text-vibe-muted cursor-pointer hover:border-vibe-accent hover:text-vibe-accent transition-all"
+              onClick={() => setActiveMood?.(activeMood === m.id ? null : m.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-full border text-[10px] uppercase tracking-wider cursor-pointer transition-all",
+                activeMood === m.id
+                  ? "border-vibe-accent text-vibe-accent bg-vibe-accent/5"
+                  : "border-vibe-muted text-vibe-muted hover:border-vibe-accent hover:text-vibe-accent"
+              )}
             >
               {m.label}
             </div>

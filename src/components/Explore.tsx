@@ -147,7 +147,7 @@ export function Explore({ onOpenProfile }: { onOpenProfile?: (id: string) => voi
                 </button>
              </div>
              <div className="flex-1 w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative">
-                <Feed initialVibeId={selectedVibe.id} />
+                <Feed activeMood={null} initialVibeId={selectedVibe.id} onOpenProfile={onOpenProfile || (() => {})} />
              </div>
            </motion.div>
         )}
