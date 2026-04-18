@@ -111,7 +111,7 @@ export function ProfileGrid({ userId, mode = 'posts', onViewerStateChange }: { u
                    <X size={24} />
                 </button>
              </div>
-             <div className="flex-1 w-full overflow-y-auto no-scrollbar snap-y snap-mandatory relative z-20">
+             <div className="flex-1 w-full overflow-y-auto no-scrollbar relative z-20">
                 {/* Reusing the Feed component directly so it handles the vertical swipe mechanics */}
                 <Feed
                   userFilter={userId}

@@ -13,6 +13,10 @@
 }
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
   body {
     @apply bg-vibe-bg text-vibe-ink font-sans selection:bg-vibe-accent/30 overflow-hidden antialiased;
   }
@@ -37,6 +41,11 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.feed-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Custom Outro Meleleh Animation */

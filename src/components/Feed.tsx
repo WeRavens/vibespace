@@ -238,7 +238,7 @@ export function Feed({
   }
 
   return (
-    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black">
+    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black feed-scroll">
       {vibes.map((vibe, index) => (
         <MemoizedFeedItem
           key={vibe.id}
@@ -332,8 +332,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full flex-shrink-0 snap-start snap-always bg-black overflow-hidden select-none will-change-transform"
-      style={{ contain: 'strict' }}
+      className="relative h-full w-full flex-shrink-0 snap-start bg-black overflow-hidden select-none"
       data-vibe-id={vibe.id}
     >
       {/* Background Media */}
