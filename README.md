@@ -2,19 +2,17 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# VibeSpace
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/0365649c-ef05-4c91-9f8d-0754365b7643
+VibeSpace is a social app focused on fast expression, mood-based posting, and mobile-first interaction.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js
 
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Copy environment values if needed from `.env.example`
 3. Run the app:
    `npm run dev`
