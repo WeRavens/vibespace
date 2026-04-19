@@ -413,7 +413,7 @@ function VibeSpace() {
                   : 'w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col'
             }>
             {activeTab === 'Feed' ? (
-              <Feed activeMood={activeMood} initialVibeId={focusedVibeId} onOpenProfile={handleOpenProfile} />
+              <Feed activeMood={activeMood} initialVibeId={focusedVibeId} onOpenProfile={handleOpenProfile} isAdmin={isAdmin} />
             ) : activeTab === 'Profile' && viewingUser ? (
               <div className="flex flex-col items-start justify-start h-full sm:h-[100dvh] pt-10 px-4 md:px-6 lg:px-8 w-full relative">
                 

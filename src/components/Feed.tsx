@@ -86,13 +86,15 @@ export function Feed({
   initialVibeId,
   onOpenProfile,
   userFilter,
-  onClose
+  onClose,
+  isAdmin: propIsAdmin
 }: {
   activeMood: string | null;
   initialVibeId?: string;
   onOpenProfile: (id: string) => void;
   userFilter?: string;
   onClose?: () => void;
+  isAdmin?: boolean;
 }) {
   const [pool, setPool] = useState<Vibe[]>([]);
   const [vibes, setVibes] = useState<Vibe[]>([]);
@@ -101,6 +103,8 @@ export function Feed({
   const { user } = useAuth();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+
+  const isAdmin = propIsAdmin ?? ((user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin'));
 
   // Helper to shuffle array
   const shuffle = (array: any[]) => {
@@ -276,6 +280,7 @@ export function Feed({
             hasSaved={Boolean(vibe.savedBy?.[user?.uid || ''])}
             onOpenProfile={onOpenProfile}
             onToggleComments={setIsCommentOpen}
+            isAdmin={isAdmin}
           />
         ))}
         {/* Sentinel for infinite loop */}
@@ -290,12 +295,13 @@ const MemoizedFeedItem = React.memo(FeedItem, (prevProps, nextProps) => {
     prevProps.vibe.id === nextProps.vibe.id &&
     prevProps.vibe.viewsCount === nextProps.vibe.viewsCount &&
     prevProps.hasSaved === nextProps.hasSaved &&
+    prevProps.isAdmin === nextProps.isAdmin &&
     JSON.stringify(prevProps.vibe.reactions) === JSON.stringify(nextProps.vibe.reactions) &&
     prevProps.vibe.comments?.length === nextProps.vibe.comments?.length
   );
 });
 
-export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments }: FeedItemProps & { onToggleComments?: (open: boolean) => void }) {
+export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments, isAdmin: propIsAdmin }: FeedItemProps & { onToggleComments?: (open: boolean) => void, isAdmin?: boolean }) {
   const { user } = useAuth();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -304,7 +310,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = (user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin');
+  const isAdmin = propIsAdmin ?? ((user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin'));
   const isOwner = user?.uid === vibe.userId;
   const canDelete = isOwner || isAdmin;
 
@@ -708,7 +714,7 @@ function VideoBackdrop({ src }: { src: string }) {
           onTouchStart={onDragStart}
           onMouseMove={handleSeek}
           onMouseLeave={() => !isDragging && setHoverTime(null)}
-          className="absolute bottom-[96px] md:bottom-0 left-0 right-0 h-6 flex items-end z-[100] cursor-ew-resize group pointer-events-auto"
+          className="absolute bottom-[110px] md:bottom-0 left-0 right-0 h-6 flex items-end z-[100] cursor-ew-resize group pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Time Preview Overlay */}
