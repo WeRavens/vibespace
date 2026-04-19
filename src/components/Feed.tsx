@@ -559,28 +559,214 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
 function VideoBackdrop({ src }: { src: string }) {
   const [isReady, setIsReady] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState<number>(0);
+  const [feedback, setFeedback] = useState<'play' | 'pause' | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const feedbackTimeout = useRef<any>(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        video.play().catch(() => {});
+        if (!isDragging) video.play().catch(() => {});
+        setIsPlaying(true);
       } else {
         video.pause();
+        setIsPlaying(false);
       }
     }, { threshold: 0.6 });
     observer.observe(video);
     return () => observer.disconnect();
-  }, []);
+  }, [isDragging]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current && !isDragging) {
+      const currentProgress = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+      setProgress(currentProgress);
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!progressBarRef.current || !videoRef.current) return;
+
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+
+    setHoverX(x);
+    const newTime = (percentage / 100) * videoRef.current.duration;
+    setHoverTime(newTime);
+
+    if (isDragging || e.type === 'click') {
+      setProgress(percentage);
+      videoRef.current.currentTime = newTime;
+    }
+  };
+
+  const onDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    setIsDragging(true);
+    handleSeek(e);
+  };
+
+  useEffect(() => {
+    const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
+      if (isDragging) {
+        const rect = progressBarRef.current?.getBoundingClientRect();
+        if (!rect || !videoRef.current) return;
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+        const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+        const percentage = (x / rect.width) * 100;
+
+        setHoverX(x);
+        const newTime = (percentage / 100) * videoRef.current.duration;
+        setHoverTime(newTime);
+
+        setProgress(percentage);
+        videoRef.current.currentTime = newTime;
+      }
+    };
+
+    const handleGlobalUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        setHoverTime(null);
+        if (isPlaying) videoRef.current?.play().catch(() => {});
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleGlobalMove);
+      window.addEventListener('touchmove', handleGlobalMove);
+      window.addEventListener('mouseup', handleGlobalUp);
+      window.addEventListener('touchend', handleGlobalUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMove);
+      window.removeEventListener('touchmove', handleGlobalMove);
+      window.removeEventListener('mouseup', handleGlobalUp);
+      window.removeEventListener('touchend', handleGlobalUp);
+    };
+  }, [isDragging, isPlaying]);
+
+  const togglePlay = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isDragging) return;
+    e.stopPropagation();
+    if (!videoRef.current) return;
+
+    if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current);
+
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+      setFeedback('play');
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+      setFeedback('pause');
+    }
+
+    // Hide feedback icon after 500ms
+    feedbackTimeout.current = setTimeout(() => {
+      setFeedback(null);
+    }, 500);
+  };
 
   return (
-    <div className="h-full w-full flex items-center justify-center">
-      <video ref={videoRef} src={src} loop muted={isMuted} playsInline preload="metadata" onLoadedData={() => setIsReady(true)} className={cn("max-h-full max-w-full object-contain transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")} />
+    <div className="h-full w-full flex items-center justify-center relative pointer-events-auto cursor-pointer" onClick={togglePlay}>
+      <video
+        ref={videoRef}
+        src={src}
+        loop
+        muted={isMuted}
+        playsInline
+        preload="metadata"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedData={() => setIsReady(true)}
+        className={cn("max-h-full max-w-full object-contain transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")}
+      />
+
+      {/* Interactive Video Progress Bar */}
+      {isReady && (
+        <div
+          ref={progressBarRef}
+          onMouseDown={onDragStart}
+          onTouchStart={onDragStart}
+          onMouseMove={handleSeek}
+          onMouseLeave={() => !isDragging && setHoverTime(null)}
+          className="absolute bottom-[96px] md:bottom-0 left-0 right-0 h-6 flex items-end z-[100] cursor-ew-resize group pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Time Preview Overlay */}
+          <AnimatePresence>
+            {hoverTime !== null && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                className="absolute bottom-8 px-2 py-1 rounded bg-black/80 border border-white/20 text-white text-[10px] font-mono pointer-events-none whitespace-nowrap z-[60]"
+                style={{
+                  left: hoverX,
+                  transform: 'translateX(-50%)'
+                }}
+              >
+                {formatTime(hoverTime)} / {videoRef.current ? formatTime(videoRef.current.duration) : '00:00'}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="w-full h-1 bg-white/20 group-hover:h-1.5 transition-all">
+            <motion.div
+              className="h-full bg-vibe-accent relative shadow-[0_0_12px_rgba(0,255,209,0.8)]"
+              style={{ width: `${progress}%` }}
+              transition={{ type: "tween", ease: "linear", duration: 0.1 }}
+            >
+               {/* Scrubbing Handle (Visible when dragging or hovering) */}
+               <div className={cn(
+                 "absolute right-0 top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-vibe-accent shadow-[0_0_15px_rgba(0,255,209,1)] scale-0 group-hover:scale-100 transition-transform",
+                 isDragging && "scale-125"
+               )} />
+            </motion.div>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Feedback Overlay (Play/Pause Pop) */}
+      <AnimatePresence mode="popLayout">
+        {feedback && (
+          <motion.div
+            key={feedback + Math.random()}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 0.8, scale: 1.2 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+          >
+             <div className="h-20 w-20 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-sm border border-white/10 text-white shadow-2xl">
+                {feedback === 'play' ? <Play size={40} className="fill-current ml-1" /> : <Pause size={40} className="fill-current" />}
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="absolute top-6 right-6 z-30 h-10 w-10 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl border border-white/10 hover:bg-black/60 transition-all pointer-events-auto">
         {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
       </button>
+
       {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-vibe-accent/20 border-t-vibe-accent" />
