@@ -624,43 +624,44 @@ function VibeSpace() {
 
       {/* Mobile Bottom Navigation */}
       {!isProfileViewerOpen && (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg border-t border-vibe-line flex items-center justify-around p-4 pb-6 z-40">
-        {[
-          { id: 'Feed', icon: Command },
-          { id: 'Explore', icon: Search },
-          { id: 'Create', icon: Plus, isCreate: true },
-          { id: 'Notifications', icon: Bell },
-          { id: 'Profile', icon: User },
-        ].map((tab) => (
-          tab.isCreate ? (
-            <button
-              key="CreateVibeBtn"
-              onClick={() => {
-                if (Capacitor.isNativePlatform()) {
-                  Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
-                }
-                setShowCreate(true);
-              }}
-              className="p-3 bg-vibe-accent text-vibe-bg rounded-full -translate-y-4 shadow-[0_0_15px_rgba(0,255,209,0.4)] hover:scale-110 active:scale-90 transition-transform"
-            >
-              <Plus size={28} strokeWidth={3} />
-            </button>
-          ) : (
-            <button
-              key={tab.id}
-              onClick={() => {
-                if (Capacitor.isNativePlatform()) {
-                  Haptics.selectionStart().catch(() => {});
-                }
-                handleTabChange(tab.id);
-              }}
-              className={`p-2 transition-colors ${activeTab === tab.id ? 'text-vibe-accent' : 'text-vibe-muted'}`}
-            >
-              <tab.icon size={24} />
-            </button>
-          )
-        ))}
-      </div>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg border-t border-vibe-line flex items-center justify-around p-4 pb-6 z-40">
+          {[
+            { id: 'Feed', icon: Command },
+            { id: 'Explore', icon: Search },
+            { id: 'Create', icon: Plus, isCreate: true },
+            { id: 'Notifications', icon: Bell },
+            { id: 'Profile', icon: User },
+          ].map((tab) => (
+            tab.isCreate ? (
+              <button
+                key="CreateVibeBtn"
+                onClick={() => {
+                  if (Capacitor.isNativePlatform()) {
+                    Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
+                  }
+                  setShowCreate(true);
+                }}
+                className="p-3 bg-vibe-accent text-vibe-bg rounded-full -translate-y-4 shadow-[0_0_15px_rgba(0,255,209,0.4)] hover:scale-110 active:scale-90 transition-transform"
+              >
+                <Plus size={28} strokeWidth={3} />
+              </button>
+            ) : (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (Capacitor.isNativePlatform()) {
+                    Haptics.selectionStart().catch(() => {});
+                  }
+                  handleTabChange(tab.id);
+                }}
+                className={`p-2 transition-colors ${activeTab === tab.id ? 'text-vibe-accent' : 'text-vibe-muted'}`}
+              >
+                <tab.icon size={24} />
+              </button>
+            )
+          ))}
+        </div>
+      )}
 
       <AnimatePresence>
         {showCreate && (
