@@ -404,7 +404,7 @@ function VibeSpace() {
              </button>
           </div>
 
-          <main className={`w-full h-full flex flex-col items-center justify-start no-scrollbar md:pb-0 ${activeTab === 'Feed' ? 'overflow-hidden pb-0' : 'overflow-y-auto scroll-smooth pb-[72px]'}`}>
+          <main className={`w-full h-full flex flex-col items-center justify-start no-scrollbar md:pb-0 ${activeTab === 'Feed' || isProfileViewerOpen ? 'overflow-hidden pb-0' : 'overflow-y-auto scroll-smooth pb-[72px]'}`}>
             <div className={
               activeTab === 'Profile'
                 ? 'w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col'
@@ -623,6 +623,7 @@ function VibeSpace() {
       </div>
 
       {/* Mobile Bottom Navigation */}
+      {!isProfileViewerOpen && (
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg border-t border-vibe-line flex items-center justify-around p-4 pb-6 z-40">
         {[
           { id: 'Feed', icon: Command },

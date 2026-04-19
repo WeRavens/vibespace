@@ -350,22 +350,33 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
     >
       {/* Background Media */}
       <div className="absolute inset-0 h-full w-full pointer-events-none">
-        {vibe.type === 'video' && vibe.mediaUrl ? (
-          <VideoBackdrop src={vibe.mediaUrl} />
-        ) : vibe.type === 'photo' && vibe.mediaUrl ? (
-          <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-100" />
+        {vibe.mediaUrl ? (
+          <>
+            {/* Blurred Background Layer */}
+            <div className="absolute inset-0 z-0">
+               <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-30 blur-3xl scale-125" />
+            </div>
+            {/* Main Content Layer */}
+            <div className="relative z-10 h-full w-full flex items-center justify-center">
+               {vibe.type === 'video' ? (
+                 <VideoBackdrop src={vibe.mediaUrl} />
+               ) : (
+                 <img src={vibe.mediaUrl} alt="" className="h-full w-full object-contain opacity-100" />
+               )}
+            </div>
+          </>
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-vibe-accent/20 via-black to-vibe-bg" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
       </div>
 
       {/* Content Bottom Left */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col p-6 pb-28 md:pb-12 pointer-events-none">
+      <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col p-6 pb-28 md:pb-12 pointer-events-none">
         <div className="flex flex-col space-y-4 max-w-[85%]">
           {/* Profile Row */}
           <div className="flex items-center space-x-3 pointer-events-auto cursor-pointer" onClick={() => !vibe.isAnonymous && onOpenProfile(vibe.userId)}>
-            <div className="h-11 w-11 overflow-hidden rounded-full border-2 border-vibe-accent/40 bg-vibe-line p-0.5">
+            <div className="h-11 w-11 overflow-hidden rounded-full border-2 border-vibe-accent/60 bg-vibe-line p-0.5 shadow-lg">
               {vibe.isAnonymous ? (
                 <div className="flex h-full w-full items-center justify-center bg-vibe-bg text-vibe-accent"><Ghost size={18} /></div>
               ) : (
@@ -373,22 +384,22 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
               )}
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-white drop-shadow-lg">{vibe.isAnonymous ? 'Someone Mysterious' : vibe.authorName}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-vibe-accent/70 drop-shadow-md">{formatDistanceToNow(normalizeDate(vibe.createdAt))} ago</span>
+              <span className="text-sm font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{vibe.isAnonymous ? 'Someone Mysterious' : vibe.authorName}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-vibe-accent drop-shadow-md">{formatDistanceToNow(normalizeDate(vibe.createdAt))} ago</span>
             </div>
           </div>
 
           {/* Text Content */}
           <div className="pointer-events-auto">
             <p className={cn(
-              "font-bold text-white tracking-tight leading-snug drop-shadow-2xl transition-all",
+              "font-bold text-white tracking-tight leading-snug drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] transition-all",
               vibe.type === 'text' ? 'text-3xl' : 'text-base',
               !isExpanded && needsClamping && "line-clamp-3"
             )}>
               {content}
             </p>
             {needsClamping && (
-              <button onClick={() => setIsExpanded(!isExpanded)} className="mt-2 text-[10px] font-black uppercase tracking-[2px] text-vibe-accent bg-black/20 px-2 py-1 rounded-md backdrop-blur-sm">
+              <button onClick={() => setIsExpanded(!isExpanded)} className="mt-2 text-[10px] font-black uppercase tracking-[2px] text-vibe-accent bg-black/40 px-3 py-1.5 rounded-md backdrop-blur-md border border-white/10">
                 {isExpanded ? "Show Less" : "Read More"}
               </button>
             )}
@@ -396,25 +407,25 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
 
           {/* Badge Row */}
           <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-             <div className="flex items-center space-x-2 text-[10px] text-vibe-accent font-bold bg-vibe-accent/10 px-3 py-1.5 rounded-full border border-vibe-accent/20 backdrop-blur-md">
+             <div className="flex items-center space-x-2 text-[10px] text-vibe-accent font-bold bg-vibe-accent/20 px-3 py-1.5 rounded-full border border-vibe-accent/30 backdrop-blur-md">
                 <span className="h-1.5 w-1.5 rounded-full bg-vibe-accent animate-pulse" />
                 <span className="uppercase">{totalReactions} Vibes</span>
              </div>
-             <div className="flex items-center space-x-1.5 text-[10px] text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
+             <div className="flex items-center space-x-1.5 text-[10px] text-white bg-white/20 px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md">
                 <Eye size={12} className="text-vibe-accent" />
-                <span>{vibe.viewsCount || 0}</span>
+                <span className="font-bold">{vibe.viewsCount || 0}</span>
              </div>
-             <button onClick={() => setShowComments(true)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md hover:bg-white/20 transition-all">
+             <button onClick={() => setShowComments(true)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white bg-white/20 px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md hover:bg-white/30 transition-all">
                 <MessageCircle size={12} />
                 <span>{vibe.comments?.length || 0}</span>
              </button>
-             <button onClick={() => onSave(vibe)} className={cn("flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full border backdrop-blur-md transition-all", hasSaved ? "bg-vibe-accent/20 border-vibe-accent text-vibe-accent" : "bg-white/10 border-white/10 text-white")}>
+             <button onClick={() => onSave(vibe)} className={cn("flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full border backdrop-blur-md transition-all", hasSaved ? "bg-vibe-accent/30 border-vibe-accent text-vibe-accent" : "bg-white/20 border-white/20 text-white")}>
                 <Bookmark size={12} className={hasSaved ? "fill-current" : ""} />
                 <span className="uppercase">{hasSaved ? 'Saved' : 'Save'}</span>
              </button>
              {vibe.mood && (
-               <div className="flex items-center space-x-1.5 text-[9px] font-black text-white/70 bg-white/5 px-3 py-1.5 rounded-full border border-white/5 uppercase tracking-widest">
-                  <span className="h-1 w-1 rounded-full bg-vibe-accent/40" />
+               <div className="flex items-center space-x-1.5 text-[9px] font-black text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 uppercase tracking-widest shadow-lg">
+                  <span className="h-1 w-1 rounded-full bg-vibe-accent" />
                   <span>{vibe.mood}</span>
                </div>
              )}
@@ -437,7 +448,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
       </div>
 
       {/* Floating Reactions Right */}
-      <div className="absolute right-4 bottom-28 md:bottom-12 z-20 flex flex-col items-center space-y-4">
+      <div className="absolute right-4 bottom-28 md:bottom-12 z-30 flex flex-col items-center space-y-4">
         <div className="flex flex-col items-center space-y-2">
            <AnimatePresence>
              {showAllReactions && sortedReactions.length > 1 && (
@@ -484,12 +495,18 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
       {/* Comment Overlay */}
       <AnimatePresence>
         {showComments && (
-          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 30 }} className="absolute inset-0 z-[100] flex flex-col bg-black/90 backdrop-blur-3xl">
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30 }}
+            className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-3xl"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-white/10 pt-12 md:pt-6">
               <h3 className="text-sm font-black uppercase tracking-[3px] text-vibe-accent">Comments</h3>
               <button onClick={() => setShowComments(false)} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/5 text-white hover:bg-white/10"><X size={20}/></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-32">
               {(!vibe.comments || vibe.comments.length === 0) ? (
                 <div className="flex h-full items-center justify-center text-vibe-muted text-xs uppercase tracking-widest">Quiet here... say something!</div>
               ) : (
@@ -507,7 +524,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
                 ))
               )}
             </div>
-            <form onSubmit={submitComment} className="p-4 bg-black/50 border-t border-white/10 flex items-center space-x-3">
+            <form onSubmit={submitComment} className="p-4 bg-black/80 border-t border-white/10 flex items-center space-x-3 pb-10 md:pb-4 backdrop-blur-md">
                <input type="text" placeholder="Add a comment..." value={commentText} onChange={(e) => setCommentText(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-5 text-sm text-white focus:outline-none focus:border-vibe-accent transition-all" />
                <button disabled={!commentText.trim()} type="submit" className="h-11 w-11 flex items-center justify-center rounded-full bg-vibe-accent text-vibe-bg disabled:opacity-30 active:scale-90 transition-transform"><Send size={18}/></button>
             </form>
@@ -538,13 +555,13 @@ function VideoBackdrop({ src }: { src: string }) {
   }, []);
 
   return (
-    <div className="absolute inset-0 bg-black flex items-center justify-center">
-      <video ref={videoRef} src={src} loop muted={isMuted} playsInline preload="metadata" onLoadedData={() => setIsReady(true)} className={cn("h-full w-full object-contain transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")} />
-      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="absolute top-6 right-6 z-30 h-12 w-12 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl border border-white/10 hover:bg-black/60 transition-all pointer-events-auto">
-        {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+    <div className="h-full w-full flex items-center justify-center">
+      <video ref={videoRef} src={src} loop muted={isMuted} playsInline preload="metadata" onLoadedData={() => setIsReady(true)} className={cn("max-h-full max-w-full object-contain transition-opacity duration-500", isReady ? "opacity-100" : "opacity-0")} />
+      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="absolute top-6 right-6 z-30 h-10 w-10 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xl border border-white/10 hover:bg-black/60 transition-all pointer-events-auto">
+        {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
       </button>
       {!isReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-vibe-bg">
+        <div className="absolute inset-0 flex items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-vibe-accent/20 border-t-vibe-accent" />
         </div>
       )}
