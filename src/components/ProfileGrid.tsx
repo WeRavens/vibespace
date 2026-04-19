@@ -104,15 +104,9 @@ export function ProfileGrid({ userId, mode = 'posts', onViewerStateChange }: { u
              initial={{ opacity: 0, y: 100 }}
              animate={{ opacity: 1, y: 0 }}
              exit={{ opacity: 0, y: 100 }}
-             className="fixed inset-0 z-50 bg-vibe-bg overflow-hidden flex flex-col"
+             className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col"
            >
-             <div className="absolute left-0 right-0 top-0 z-50 flex items-center justify-start p-4 md:justify-end">
-                <button onClick={() => setSelectedVibe(null)} className="p-3 bg-black/50 rounded-full text-white hover:text-vibe-accent border border-vibe-line backdrop-blur-md">
-                   <X size={24} />
-                </button>
-             </div>
-             <div className="flex-1 w-full overflow-y-auto no-scrollbar relative z-20">
-                {/* Reusing the Feed component directly so it handles the vertical swipe mechanics */}
+             <div className="flex-1 w-full overflow-hidden relative z-20">
                 <Feed
                   userFilter={userId}
                   initialVibeId={selectedVibe.id}
@@ -121,6 +115,7 @@ export function ProfileGrid({ userId, mode = 'posts', onViewerStateChange }: { u
                     setSelectedVibe(null);
                     onViewerStateChange?.(false);
                   }}
+                  onClose={() => setSelectedVibe(null)}
                 />
              </div>
            </motion.div>

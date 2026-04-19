@@ -85,16 +85,19 @@ export function Feed({
   activeMood,
   initialVibeId,
   onOpenProfile,
-  userFilter
+  userFilter,
+  onClose
 }: {
   activeMood: string | null;
   initialVibeId?: string;
   onOpenProfile: (id: string) => void;
   userFilter?: string;
+  onClose?: () => void;
 }) {
   const [pool, setPool] = useState<Vibe[]>([]);
   const [vibes, setVibes] = useState<Vibe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCommentOpen, setIsCommentOpen] = useState(false);
   const { user } = useAuth();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
@@ -251,19 +254,33 @@ export function Feed({
   }
 
   return (
-    <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black feed-scroll">
-      {vibes.map((vibe, index) => (
-        <MemoizedFeedItem
-          key={vibe.id}
-          vibe={vibe}
-          onReact={handleReact}
-          onSave={handleSave}
-          hasSaved={Boolean(vibe.savedBy?.[user?.uid || ''])}
-          onOpenProfile={onOpenProfile}
-        />
-      ))}
-      {/* Sentinel for infinite loop */}
-      <div ref={sentinelRef} className="h-px w-full flex-shrink-0" />
+    <div className="relative w-full h-full bg-black">
+      {onClose && !isCommentOpen && (
+        <div className="absolute left-0 right-0 top-0 z-[150] flex items-center justify-start p-4 md:justify-end pointer-events-none">
+          <button
+            onClick={onClose}
+            className="p-3 bg-black/50 rounded-full text-white hover:text-vibe-accent border border-white/10 backdrop-blur-md pointer-events-auto shadow-2xl transition-all active:scale-90"
+          >
+            <X size={24} />
+          </button>
+        </div>
+      )}
+
+      <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black feed-scroll">
+        {vibes.map((vibe, index) => (
+          <MemoizedFeedItem
+            key={vibe.id}
+            vibe={vibe}
+            onReact={handleReact}
+            onSave={handleSave}
+            hasSaved={Boolean(vibe.savedBy?.[user?.uid || ''])}
+            onOpenProfile={onOpenProfile}
+            onToggleComments={setIsCommentOpen}
+          />
+        ))}
+        {/* Sentinel for infinite loop */}
+        <div ref={sentinelRef} className="h-px w-full flex-shrink-0" />
+      </div>
     </div>
   );
 }
@@ -278,7 +295,7 @@ const MemoizedFeedItem = React.memo(FeedItem, (prevProps, nextProps) => {
   );
 });
 
-export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: FeedItemProps) {
+export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments }: FeedItemProps & { onToggleComments?: (open: boolean) => void }) {
   const { user } = useAuth();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -310,6 +327,10 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile }: Fee
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [vibe.id]);
+
+  useEffect(() => {
+    onToggleComments?.(showComments);
+  }, [showComments, onToggleComments]);
 
   const sortedReactions = useMemo(() => {
     if (!vibe.reactions) return [];
