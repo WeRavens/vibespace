@@ -714,7 +714,7 @@ function VideoBackdrop({ src }: { src: string }) {
           onTouchStart={onDragStart}
           onMouseMove={handleSeek}
           onMouseLeave={() => !isDragging && setHoverTime(null)}
-          className="absolute bottom-[110px] md:bottom-0 left-0 right-0 h-6 flex items-end z-[100] cursor-ew-resize group pointer-events-auto"
+          className="absolute bottom-[98px] md:bottom-0 left-0 right-0 h-6 flex items-end z-[100] cursor-ew-resize group pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Time Preview Overlay */}
