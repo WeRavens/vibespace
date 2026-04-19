@@ -438,18 +438,22 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
                 <span className="h-1.5 w-1.5 rounded-full bg-vibe-accent animate-pulse" />
                 <span className="uppercase">{totalReactions} Vibes</span>
              </div>
-             <div className="flex items-center space-x-1.5 text-[10px] text-white bg-white/20 px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md">
+
+             <div className="flex items-center space-x-1.5 text-[9px] font-black text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 uppercase tracking-widest shadow-lg backdrop-blur-md">
                 <Eye size={12} className="text-vibe-accent" />
-                <span className="font-bold">{vibe.viewsCount || 0}</span>
+                <span>{vibe.viewsCount || 0}</span>
              </div>
-             <button onClick={() => setShowComments(true)} className="flex items-center space-x-1.5 text-[10px] font-bold text-white bg-white/20 px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md hover:bg-white/30 transition-all">
-                <MessageCircle size={12} />
+
+             <button onClick={() => setShowComments(true)} className="flex items-center space-x-1.5 text-[9px] font-black text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 uppercase tracking-widest shadow-lg backdrop-blur-md hover:bg-white/20 transition-all">
+                <MessageCircle size={12} className="text-vibe-accent" />
                 <span>{vibe.comments?.length || 0}</span>
              </button>
-             <button onClick={() => onSave(vibe)} className={cn("flex items-center space-x-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full border backdrop-blur-md transition-all", hasSaved ? "bg-vibe-accent/30 border-vibe-accent text-vibe-accent" : "bg-white/20 border-white/20 text-white")}>
-                <Bookmark size={12} className={hasSaved ? "fill-current" : ""} />
-                <span className="uppercase">{hasSaved ? 'Saved' : 'Save'}</span>
+
+             <button onClick={() => onSave(vibe)} className={cn("flex items-center space-x-1.5 text-[9px] font-black px-3 py-1.5 rounded-full border shadow-lg backdrop-blur-md uppercase tracking-widest transition-all", hasSaved ? "bg-vibe-accent/30 border-vibe-accent text-vibe-accent" : "bg-white/10 border-white/10 text-white")}>
+                <Bookmark size={12} className={cn("text-vibe-accent", hasSaved ? "fill-current" : "")} />
+                <span>{hasSaved ? 'Saved' : 'Save'}</span>
              </button>
+
              {vibe.mood && (
                <div className="flex items-center space-x-1.5 text-[9px] font-black text-white bg-white/10 px-3 py-1.5 rounded-full border border-white/10 uppercase tracking-widest shadow-lg">
                   <span className="h-1 w-1 rounded-full bg-vibe-accent" />
