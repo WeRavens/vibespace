@@ -69,6 +69,9 @@ interface FeedItemProps {
   onSave: (vibe: Vibe) => void;
   hasSaved?: boolean;
   onOpenProfile: (id: string) => void;
+  onToggleComments?: (open: boolean) => void;
+  isAdmin?: boolean;
+  isLoggedIn?: boolean;
 }
 
 const REACTION_EMOJIS = ["🔥", "❤️", "🤣", "😢", "🙌", "✨", "💯", "🤯"];
@@ -207,15 +210,34 @@ export function Feed({
 
   const handleReact = async (vibeId: string, emoji: string) => {
     if (!user) return;
-    // Extract original ID if it's a repeated item
     const originalId = vibeId.split('-repeat-')[0];
     const vibeRef = doc(db, "vibes", originalId);
+    
+    // Optimistic UI: update immediately in local state
+    setVibes(prev => prev.map(v => {
+      if (v.id !== vibeId && v.id !== originalId) return v;
+      const currentReactions = { ...(v.reactions || {}) };
+      const userReactions = { ...(v.userReactions || {}) };
+      const oldEmoji = userReactions[user.uid];
+      
+      if (oldEmoji === emoji) {
+        userReactions[user.uid] = undefined as any;
+        currentReactions[emoji] = (currentReactions[emoji] || 1) - 1;
+      } else {
+        if (oldEmoji) currentReactions[oldEmoji] = (currentReactions[oldEmoji] || 1) - 1;
+        userReactions[user.uid] = emoji;
+        currentReactions[emoji] = (currentReactions[emoji] || 0) + 1;
+      }
+      
+      return { ...v, reactions: currentReactions, userReactions };
+    }));
+    
     try {
       const snap = await getDoc(vibeRef);
       if (!snap.exists()) return;
       const data = snap.data();
-      const userReactions = data.userReactions || {};
-      const oldEmoji = userReactions[user.uid];
+      const currentUserReactions = data.userReactions || {};
+      const oldEmoji = currentUserReactions[user.uid];
       const updates: any = {};
       if (oldEmoji === emoji) {
         updates[`userReactions.${user.uid}`] = deleteField();
@@ -226,18 +248,31 @@ export function Feed({
         updates[`reactions.${emoji}`] = increment(1);
       }
       await updateDoc(vibeRef, updates);
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err); 
+      // Revert on error
+      setVibes(prev => [...prev]);
+    }
   };
 
   const handleSave = async (vibe: Vibe) => {
     if (!user) return;
     const originalId = vibe.id.split('-repeat-')[0];
+    const isSaved = vibe.savedBy?.[user.uid];
+    
+    // Optimistic UI: update immediately
+    setVibes(prev => prev.map(v => {
+      if (v.id !== vibe.id && v.id !== originalId) return v;
+      return { ...v, savedBy: { ...v.savedBy, [user.uid]: isSaved ? undefined : true } };
+    }));
+    
     try {
-      const isSaved = vibe.savedBy?.[user.uid];
       await updateDoc(doc(db, "vibes", originalId), {
         [`savedBy.${user.uid}`]: isSaved ? deleteField() : true
       });
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err); 
+    }
   };
 
   if (loading) {
@@ -301,7 +336,7 @@ const MemoizedFeedItem = React.memo(FeedItem, (prevProps, nextProps) => {
   );
 });
 
-export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments, isAdmin: propIsAdmin }: FeedItemProps & { onToggleComments?: (open: boolean) => void, isAdmin?: boolean }) {
+export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments, isAdmin: propIsAdmin, isLoggedIn }: FeedItemProps) {
   const { user } = useAuth();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');

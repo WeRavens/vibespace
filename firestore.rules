@@ -65,5 +65,41 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (resource.data.targetUserId == request.auth.uid || isAdmin());
     }
+
+    // -------------------------------------------------------------------------
+    // Direct Messages (Chats)
+    // -------------------------------------------------------------------------
+    match /chats/{chatId} {
+      allow read: if isSignedIn() && resource.data.participants[request.auth.uid] != null;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.participants[request.auth.uid] != null;
+      allow delete: if isAdmin();
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants[request.auth.uid] != null;
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants[request.auth.uid] != null;
+        allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Stories (24hr stories)
+    // -------------------------------------------------------------------------
+    match /stories/{storyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Polls
+    // -------------------------------------------------------------------------
+    match /polls/{pollId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
   }
 }

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Feed } from './components/Feed';
 import { CreateVibe } from './components/CreateVibe';
@@ -14,8 +14,12 @@ import { Explore } from './components/Explore';
 import { Notifications } from './components/Notifications';
 import { ProfileGrid } from './components/ProfileGrid';
 import { Avatar } from './components/Avatar';
+import { ErrorBoundary, SuspenseFallback } from './components/ErrorBoundary';
+import { Stories } from './components/Stories';
+import { Messages } from './components/Messages';
+import { SearchModal } from './components/Search';
 import { AnimatePresence, motion } from 'motion/react';
-import { Plus, Command, Search, Bell, User, Ghost, LogOut, Edit2, Check, X, Camera, ShieldAlert, Trash2 } from 'lucide-react';
+import { Plus, Command, Search, Bell, User, Ghost, LogOut, Edit2, Check, X, Camera, ShieldAlert, Trash2, MessageCircle, Hash } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from './lib/firebase';
@@ -24,6 +28,7 @@ import { LanguageProvider, useLanguage } from './lib/LanguageContext';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { trackEvent } from './lib/analytics';
 
 function VibeSpace() {
   const { user, loading, logout } = useAuth();
@@ -48,6 +53,10 @@ function VibeSpace() {
   const bioMaxLength = 80;
   
   const [userStats, setUserStats] = useState({ video: 0, vibes: 0 });
+  const [showMessages, setShowMessages] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [savedVibeIds, setSavedVibeIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Check web URL on mount
@@ -108,6 +117,8 @@ function VibeSpace() {
       setIsExplicitAdmin(false);
       return;
     }
+
+    trackEvent('app_load', { userId: user.uid });
 
     getDoc(doc(db, 'users', user.uid))
       .then((snap) => {
@@ -624,11 +635,12 @@ function VibeSpace() {
 
       {/* Mobile Bottom Navigation */}
       {!isProfileViewerOpen && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg border-t border-vibe-line flex items-center justify-around p-4 pb-6 z-40">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg/95 border-t border-vibe-line backdrop-blur-xl flex items-center justify-around px-2 py-3 pb-7 z-40">
           {[
             { id: 'Feed', icon: Command },
             { id: 'Explore', icon: Search },
             { id: 'Create', icon: Plus, isCreate: true },
+            { id: 'Messages', icon: MessageCircle },
             { id: 'Notifications', icon: Bell },
             { id: 'Profile', icon: User },
           ].map((tab) => (
@@ -638,12 +650,13 @@ function VibeSpace() {
                 onClick={() => {
                   if (Capacitor.isNativePlatform()) {
                     Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
+                    trackEvent('create_vibe', { source: 'mobile_nav' });
                   }
                   setShowCreate(true);
                 }}
-                className="p-3 bg-vibe-accent text-vibe-bg rounded-full -translate-y-4 shadow-[0_0_15px_rgba(0,255,209,0.4)] hover:scale-110 active:scale-90 transition-transform"
+                className="flex items-center justify-center min-w-[56px] min-h-[56px] bg-vibe-accent text-vibe-bg rounded-full -translate-y-2 shadow-[0_0_20px_rgba(0,255,209,0.5)] hover:scale-110 active:scale-90 transition-transform"
               >
-                <Plus size={28} strokeWidth={3} />
+                <Plus size={26} strokeWidth={3} />
               </button>
             ) : (
               <button
@@ -652,11 +665,27 @@ function VibeSpace() {
                   if (Capacitor.isNativePlatform()) {
                     Haptics.selectionStart().catch(() => {});
                   }
-                  handleTabChange(tab.id);
+                  if (tab.id === 'Explore') {
+                    setActiveTab('Explore');
+                  } else if (tab.id === 'Messages') {
+                    setShowMessages(true);
+                  } else if (tab.id === 'Notifications') {
+                    setActiveTab('Notifications');
+                    trackEvent('view_notifications' as any);
+                  } else if (tab.id === 'Profile') {
+                    setActiveTab('Profile');
+                  } else if (tab.id === 'Feed') {
+                    setActiveTab('Feed');
+                  }
                 }}
-                className={`p-2 transition-colors ${activeTab === tab.id ? 'text-vibe-accent' : 'text-vibe-muted'}`}
+                className={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] rounded-xl transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-vibe-accent bg-vibe-accent/10'
+                    : 'text-vibe-muted hover:text-white'
+                }`}
               >
-                <tab.icon size={24} />
+                <tab.icon size={26} />
+                <span className="text-[9px] font-medium mt-1 uppercase tracking-wider">{tab.id}</span>
               </button>
             )
           ))}
@@ -668,6 +697,24 @@ function VibeSpace() {
           <CreateVibe onClose={() => setShowCreate(false)} />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showMessages && (
+          <Messages onClose={() => setShowMessages(false)} />
+        )}
+      </AnimatePresence>
+
+      <SearchModal 
+        isOpen={showSearch} 
+        onClose={() => setShowSearch(false)}
+        onSelectUser={(userId) => {
+          setActiveTab('Profile');
+        }}
+        onSelectHashtag={(tag) => {
+          setActiveMood(tag);
+          setActiveTab('Feed');
+        }}
+      />
     </div>
   );
 }
