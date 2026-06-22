@@ -3,84 +3,165 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { AuthProvider, useAuth } from './lib/AuthContext';
-import { Feed } from './components/Feed';
-import { CreateVibe } from './components/CreateVibe';
-import { SidebarLeft } from './components/SidebarLeft';
-import { SidebarRight } from './components/SidebarRight';
-import { Landing } from './components/Landing';
-import { Explore } from './components/Explore';
-import { Notifications } from './components/Notifications';
-import { ProfileGrid } from './components/ProfileGrid';
-import { Avatar } from './components/Avatar';
-import { ErrorBoundary, SuspenseFallback } from './components/ErrorBoundary';
-import { Stories } from './components/Stories';
-import { Messages } from './components/Messages';
-import { SearchModal } from './components/Search';
-import { AnimatePresence, motion } from 'motion/react';
-import { Plus, Command, Search, Bell, User, Ghost, LogOut, Edit2, Check, X, Camera, ShieldAlert, Trash2, MessageCircle, Hash } from 'lucide-react';
-import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
-import { db, auth } from './lib/firebase';
-import { UploadProvider, useUpload } from './lib/UploadContext';
-import { LanguageProvider, useLanguage } from './lib/LanguageContext';
-import { App as CapacitorApp } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { trackEvent } from './lib/analytics';
+import React, { useState, useEffect, lazy, Suspense } from "react";
+import { AuthProvider, useAuth } from "./lib/AuthContext";
+import { Feed } from "./components/Feed";
+import { CreateVibe } from "./components/CreateVibe";
+import { SidebarLeft } from "./components/SidebarLeft";
+import { SidebarRight } from "./components/SidebarRight";
+import { Landing } from "./components/Landing";
+import { Explore } from "./components/Explore";
+import { Notifications } from "./components/Notifications";
+import { ProfileGrid } from "./components/ProfileGrid";
+import { Avatar } from "./components/Avatar";
+import { ErrorBoundary, SuspenseFallback } from "./components/ErrorBoundary";
+import { Stories } from "./components/Stories";
+import { SearchModal } from "./components/Search";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  Plus,
+  Command,
+  Search,
+  Bell,
+  User,
+  Ghost,
+  LogOut,
+  Edit2,
+  Check,
+  X,
+  Camera,
+  ShieldAlert,
+  Trash2,
+  Hash,
+  ArrowLeft,
+  ArrowRight,
+  RotateCw,
+} from "lucide-react";
+import { updateProfile } from "firebase/auth";
+import {
+  doc,
+  updateDoc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
+import { db, auth } from "./lib/firebase";
+import { UploadProvider, useUpload } from "./lib/UploadContext";
+import { LanguageProvider, useLanguage } from "./lib/LanguageContext";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import { trackEvent } from "./lib/analytics";
 
 function VibeSpace() {
   const { user, loading, logout } = useAuth();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState('Feed');
+  const [activeTab, setActiveTab] = useState("Feed");
   const [showCreate, setShowCreate] = useState(false);
   const [editNameMode, setEditNameMode] = useState(false);
-  const [profileTab, setProfileTab] = useState<'posts'|'saved'>('posts');
-  const [newName, setNewName] = useState('');
+  const [profileTab, setProfileTab] = useState<"posts" | "saved">("posts");
+  const [newName, setNewName] = useState("");
   const [activeMood, setActiveMood] = useState<string | null>(null);
-  
-  const [focusedVibeId, setFocusedVibeId] = useState<string | undefined>(undefined);
+
+  const [focusedVibeId, setFocusedVibeId] = useState<string | undefined>(
+    undefined,
+  );
   const [viewingUser, setViewingUser] = useState<any>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [showBioModal, setShowBioModal] = useState(false);
   const [editBioMode, setEditBioMode] = useState(false);
-  const [newBio, setNewBio] = useState('');
+  const [newBio, setNewBio] = useState("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isExplicitAdmin, setIsExplicitAdmin] = useState(false);
   const [isProfileViewerOpen, setIsProfileViewerOpen] = useState(false);
   const bioMaxLength = 80;
-  
+
   const [userStats, setUserStats] = useState({ video: 0, vibes: 0 });
-  const [showMessages, setShowMessages] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedVibeIds, setSavedVibeIds] = useState<Record<string, boolean>>({});
+  const [activeVibe, setActiveVibe] = useState<any>(null);
+
+  // Browser-like navigation controls history state
+  const [navigationHistory, setNavigationHistory] = useState<Array<{
+    activeTab: string;
+    viewingUser: any;
+    focusedVibeId: string | undefined;
+    activeMood: string | null;
+  }>>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isNavigatingHistoryRef = React.useRef(false);
+  const isInitialAuthLoadRef = React.useRef(true);
 
   useEffect(() => {
-    // Check web URL on mount
+    // Check web URL on mount or restore session
     const path = window.location.pathname;
     const match = path.match(/\/vibe\/([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
+
+    let initialTab = "Feed";
+    let initialUser = null;
+    let initialVibeId = undefined;
+    let initialMood = null;
+
+    const savedStateStr = sessionStorage.getItem("vibespace_reload_state");
+    if (savedStateStr) {
+      try {
+        const parsed = JSON.parse(savedStateStr);
+        if (parsed.activeTab) {
+          initialTab = parsed.activeTab;
+          setActiveTab(parsed.activeTab);
+        }
+        if (parsed.viewingUser) {
+          initialUser = parsed.viewingUser;
+          setViewingUser(parsed.viewingUser);
+        }
+        if (parsed.focusedVibeId) {
+          initialVibeId = parsed.focusedVibeId;
+          setFocusedVibeId(parsed.focusedVibeId);
+        }
+        if (parsed.activeMood) {
+          initialMood = parsed.activeMood;
+          setActiveMood(parsed.activeMood);
+        }
+      } catch (e) {
+        console.error("Error restoring reload state", e);
+      }
+      sessionStorage.removeItem("vibespace_reload_state");
+    } else if (match && match[1]) {
+      initialVibeId = match[1];
       setFocusedVibeId(match[1]);
-      setActiveTab('Feed');
+      setActiveTab("Feed");
     }
+
+    setNavigationHistory([
+      {
+        activeTab: initialTab,
+        viewingUser: initialUser,
+        focusedVibeId: initialVibeId,
+        activeMood: initialMood,
+      }
+    ]);
+    setHistoryIndex(0);
 
     if (!Capacitor.isNativePlatform()) return;
 
     const handleDeepLink = (data: { url: string }) => {
-      console.log('Deep link received:', data.url);
+      console.log("Deep link received:", data.url);
       try {
         const url = new URL(data.url);
-        let vibeId = '';
+        let vibeId = "";
 
-        if (url.protocol === 'vibespace:') {
+        if (url.protocol === "vibespace:") {
           // vibespace://vibe/ID -> host is vibe, pathname is /ID
-          if (url.host === 'vibe') {
-            vibeId = url.pathname.replace(/^\//, '');
+          if (url.host === "vibe") {
+            vibeId = url.pathname.replace(/^\//, "");
           }
-        } else if (url.hostname.includes('vibespace.app')) {
+        } else if (url.hostname.includes("vibespace.app")) {
           // https://vibespace.app/vibe/ID
           const match = url.pathname.match(/\/vibe\/([a-zA-Z0-9_-]+)/);
           if (match) vibeId = match[1];
@@ -88,29 +169,105 @@ function VibeSpace() {
 
         if (vibeId) {
           setFocusedVibeId(vibeId);
-          setActiveTab('Feed');
+          setActiveTab("Feed");
           // Force scroll to top of feed
           setTimeout(() => {
-            const mainEl = document.querySelector('main');
-            if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+            const mainEl = document.querySelector("main");
+            if (mainEl) mainEl.scrollTo({ top: 0, behavior: "smooth" });
           }, 100);
         }
       } catch (e) {
-        console.error('Error parsing deep link', e);
+        console.error("Error parsing deep link", e);
       }
     };
 
-    const urlListener = CapacitorApp.addListener('appUrlOpen', handleDeepLink);
+    const urlListener = CapacitorApp.addListener("appUrlOpen", handleDeepLink);
 
     // Check for initial URL
-    CapacitorApp.getLaunchUrl().then(urlData => {
+    CapacitorApp.getLaunchUrl().then((urlData) => {
       if (urlData) handleDeepLink(urlData);
     });
 
     return () => {
-      urlListener.then(l => l.remove());
+      urlListener.then((l) => l.remove());
     };
   }, []);
+
+  // Track navigation changes and update history stack
+  useEffect(() => {
+    if (historyIndex === -1) return;
+
+    if (isNavigatingHistoryRef.current) {
+      isNavigatingHistoryRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setNavigationHistory((prev) => {
+        const currentEntry = prev[historyIndex];
+        if (
+          currentEntry &&
+          currentEntry.activeTab === activeTab &&
+          currentEntry.viewingUser?.uid === viewingUser?.uid &&
+          currentEntry.focusedVibeId === focusedVibeId &&
+          currentEntry.activeMood === activeMood
+        ) {
+          return prev;
+        }
+
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push({
+          activeTab,
+          viewingUser,
+          focusedVibeId,
+          activeMood,
+        });
+        setHistoryIndex(newHistory.length - 1);
+        return newHistory;
+      });
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, viewingUser?.uid, focusedVibeId, activeMood]);
+
+  const handleGoBack = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      const prevEntry = navigationHistory[prevIndex];
+      isNavigatingHistoryRef.current = true;
+      setHistoryIndex(prevIndex);
+      setActiveTab(prevEntry.activeTab);
+      setViewingUser(prevEntry.viewingUser);
+      setFocusedVibeId(prevEntry.focusedVibeId);
+      setActiveMood(prevEntry.activeMood);
+    }
+  };
+
+  const handleGoForward = () => {
+    if (historyIndex < navigationHistory.length - 1) {
+      const nextIndex = historyIndex + 1;
+      const nextEntry = navigationHistory[nextIndex];
+      isNavigatingHistoryRef.current = true;
+      setHistoryIndex(nextIndex);
+      setActiveTab(nextEntry.activeTab);
+      setViewingUser(nextEntry.viewingUser);
+      setFocusedVibeId(nextEntry.focusedVibeId);
+      setActiveMood(nextEntry.activeMood);
+    }
+  };
+
+  const handleRefresh = () => {
+    sessionStorage.setItem(
+      "vibespace_reload_state",
+      JSON.stringify({
+        activeTab,
+        viewingUser,
+        focusedVibeId,
+        activeMood,
+      })
+    );
+    window.location.reload();
+  };
 
   useEffect(() => {
     if (!user || !db) {
@@ -118,35 +275,48 @@ function VibeSpace() {
       return;
     }
 
-    trackEvent('app_load', { userId: user.uid });
+    trackEvent("app_load", { userId: user.uid });
 
-    getDoc(doc(db, 'users', user.uid))
+    getDoc(doc(db, "users", user.uid))
       .then((snap) => {
-        setIsExplicitAdmin(Boolean(snap.exists() && snap.data()?.overrideAdmin));
+        setIsExplicitAdmin(
+          Boolean(snap.exists() && snap.data()?.overrideAdmin),
+        );
       })
       .catch((error) => {
-        console.error('Error checking admin access', error);
+        console.error("Error checking admin access", error);
         setIsExplicitAdmin(false);
       });
   }, [user?.uid]);
 
-  const isAdmin = (user?.email || '').toLowerCase().includes('ikfah') ||
-                  (user?.email || '').toLowerCase().includes('admin') ||
-                  isExplicitAdmin;
+  const isAdmin =
+    (user?.email || "").toLowerCase().includes("ikfah") ||
+    (user?.email || "").toLowerCase().includes("admin") ||
+    isExplicitAdmin;
   const isViewingOwnProfile = viewingUser?.uid === user?.uid;
-  const isViewingOtherProfile = Boolean(viewingUser?.uid && user?.uid && viewingUser.uid !== user.uid);
+  const isViewingOtherProfile = Boolean(
+    viewingUser?.uid && user?.uid && viewingUser.uid !== user.uid,
+  );
 
   // Fetch real statistics for profile
   useEffect(() => {
     if (!viewingUser?.uid || !db) return;
     const fetchStats = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'vibes'), where('userId', '==', viewingUser.uid)));
+        const snap = await getDocs(
+          query(
+            collection(db, "vibes"),
+            where("userId", "==", viewingUser.uid),
+          ),
+        );
         let videoCount = snap.size;
         let vibesCount = 0;
-        snap.forEach(doc => {
-           const reactions = doc.data().reactions || {};
-           vibesCount += Object.values(reactions).reduce((a: any, b: any) => a + b, 0) as number;
+        snap.forEach((doc) => {
+          const reactions = doc.data().reactions || {};
+          vibesCount += Object.values(reactions).reduce(
+            (a: any, b: any) => a + b,
+            0,
+          ) as number;
         });
         setUserStats({ video: videoCount, vibes: vibesCount });
       } catch (e) {
@@ -158,19 +328,21 @@ function VibeSpace() {
 
   useEffect(() => {
     const handleOpen = () => setShowCreate(true);
-    document.addEventListener('openCreate', handleOpen);
-    return () => document.removeEventListener('openCreate', handleOpen);
+    document.addEventListener("openCreate", handleOpen);
+    return () => document.removeEventListener("openCreate", handleOpen);
   }, []);
 
   const handleUpdateName = async () => {
     if (!newName.trim() || !auth?.currentUser) return;
     try {
       await updateProfile(auth.currentUser, { displayName: newName.trim() });
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), { displayName: newName.trim() });
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        displayName: newName.trim(),
+      });
       setEditNameMode(false);
       window.location.reload();
     } catch (e) {
-      alert(t('failedUpdateName'));
+      alert(t("failedUpdateName"));
     }
   };
 
@@ -181,33 +353,40 @@ function VibeSpace() {
     setIsUploadingPhoto(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', 'zgsciaie');
+      formData.append("file", file);
+      formData.append("upload_preset", "zgsciaie");
 
-      const res = await fetch('https://api.cloudinary.com/v1_1/df0sltu6v/auto/upload', {
-        method: 'POST',
-        body: formData
-      });
+      const res = await fetch(
+        "https://api.cloudinary.com/v1_1/df0sltu6v/auto/upload",
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       if (!res.ok) {
-        throw new Error('Cloudinary upload failed');
+        throw new Error("Cloudinary upload failed");
       }
 
       const data = await res.json();
 
       if (data.secure_url) {
         await updateProfile(auth.currentUser, { photoURL: data.secure_url });
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), { photoURL: data.secure_url });
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          photoURL: data.secure_url,
+        });
         await auth.currentUser.reload();
-        setViewingUser((current: any) => current ? { ...current, photoURL: data.secure_url } : current);
+        setViewingUser((current: any) =>
+          current ? { ...current, photoURL: data.secure_url } : current,
+        );
       } else {
-        throw new Error('Photo URL was not returned');
+        throw new Error("Photo URL was not returned");
       }
 
-      e.target.value = '';
-    } catch(err) {
-      console.error('Failed to upload profile photo:', err);
-      alert(t('uploadFailed'));
+      e.target.value = "";
+    } catch (err) {
+      console.error("Failed to upload profile photo:", err);
+      alert(t("uploadFailed"));
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -216,35 +395,39 @@ function VibeSpace() {
   const handleUpdateBio = async () => {
     if (!auth?.currentUser) return;
     try {
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), { bio: newBio.trim() });
+      await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        bio: newBio.trim(),
+      });
       setViewingUser({ ...viewingUser, bio: newBio.trim() });
       setEditBioMode(false);
-    } catch(e) { alert(t('failedUpdateDescription')); }
+    } catch (e) {
+      alert(t("failedUpdateDescription"));
+    }
   };
 
   const handleOpenVibe = (id: string) => {
     setFocusedVibeId(id);
-    setActiveTab('Feed');
+    setActiveTab("Feed");
   };
 
   const handleOpenProfile = async (targetId: string) => {
     if (targetId === user?.uid) {
-       setViewingUser(user);
+      setViewingUser(user);
     } else {
-       const snap = await getDoc(doc(db, 'users', targetId));
-       if (snap.exists()) {
-          setViewingUser({ uid: targetId, ...snap.data() });
-       }
+      const snap = await getDoc(doc(db, "users", targetId));
+      if (snap.exists()) {
+        setViewingUser({ uid: targetId, ...snap.data() });
+      }
     }
-    setActiveTab('Profile');
+    setActiveTab("Profile");
   };
 
   const handleToggleBlockUser = async () => {
     if (!isAdmin || !isViewingOtherProfile || !viewingUser?.uid || !db) return;
 
     const nextBlockedState = !viewingUser.isBanned;
-    const actionLabel = nextBlockedState ? 'memblokir' : 'membuka blokir';
-    const targetName = viewingUser.displayName || 'user ini';
+    const actionLabel = nextBlockedState ? "memblokir" : "membuka blokir";
+    const targetName = viewingUser.displayName || "user ini";
 
     if (!confirm(`Apakah kamu yakin ingin ${actionLabel} ${targetName}?`)) {
       return;
@@ -252,20 +435,20 @@ function VibeSpace() {
 
     try {
       if (nextBlockedState) {
-        await updateDoc(doc(db, 'users', viewingUser.uid), {
+        await updateDoc(doc(db, "users", viewingUser.uid), {
           isBanned: true,
           bannedAt: Date.now(),
         });
-        await setDoc(doc(db, 'bannedUsers', viewingUser.uid), {
+        await setDoc(doc(db, "bannedUsers", viewingUser.uid), {
           bannedAt: Date.now(),
-          reason: 'Admin Action',
+          reason: "Admin Action",
         });
       } else {
-        await updateDoc(doc(db, 'users', viewingUser.uid), {
+        await updateDoc(doc(db, "users", viewingUser.uid), {
           isBanned: false,
           unbannedAt: Date.now(),
         });
-        await deleteDoc(doc(db, 'bannedUsers', viewingUser.uid));
+        await deleteDoc(doc(db, "bannedUsers", viewingUser.uid));
       }
 
       setViewingUser((current: any) =>
@@ -277,15 +460,15 @@ function VibeSpace() {
           : `${targetName} berhasil dibuka blokirnya.`,
       );
     } catch (error) {
-      console.error('Failed to update block state', error);
-      alert('Gagal memperbarui status blokir user.');
+      console.error("Failed to update block state", error);
+      alert("Gagal memperbarui status blokir user.");
     }
   };
 
   const handleDeleteUser = async () => {
     if (!isAdmin || !isViewingOtherProfile || !viewingUser?.uid || !db) return;
 
-    if (!confirm(t('deleteUserConfirm'))) {
+    if (!confirm(t("deleteUserConfirm"))) {
       return;
     }
 
@@ -293,51 +476,62 @@ function VibeSpace() {
       const userId = viewingUser.uid;
 
       const userVibesSnap = await getDocs(
-        query(collection(db, 'vibes'), where('userId', '==', userId)),
+        query(collection(db, "vibes"), where("userId", "==", userId)),
       );
 
-      await Promise.all(userVibesSnap.docs.map((vibeDoc) => deleteDoc(doc(db, 'vibes', vibeDoc.id))));
+      await Promise.all(
+        userVibesSnap.docs.map((vibeDoc) =>
+          deleteDoc(doc(db, "vibes", vibeDoc.id)),
+        ),
+      );
 
       const targetNotificationsSnap = await getDocs(
-        query(collection(db, 'notifications'), where('targetUserId', '==', userId)),
+        query(
+          collection(db, "notifications"),
+          where("targetUserId", "==", userId),
+        ),
       );
       const actorNotificationsSnap = await getDocs(
-        query(collection(db, 'notifications'), where('actorId', '==', userId)),
+        query(collection(db, "notifications"), where("actorId", "==", userId)),
       );
 
       const notificationIds = new Set([
-        ...targetNotificationsSnap.docs.map((notificationDoc) => notificationDoc.id),
-        ...actorNotificationsSnap.docs.map((notificationDoc) => notificationDoc.id),
+        ...targetNotificationsSnap.docs.map(
+          (notificationDoc) => notificationDoc.id,
+        ),
+        ...actorNotificationsSnap.docs.map(
+          (notificationDoc) => notificationDoc.id,
+        ),
       ]);
 
       await Promise.all(
         [...notificationIds].map((notificationId) =>
-          deleteDoc(doc(db, 'notifications', notificationId)),
+          deleteDoc(doc(db, "notifications", notificationId)),
         ),
       );
 
-      await deleteDoc(doc(db, 'bannedUsers', userId)).catch(() => {});
-      await deleteDoc(doc(db, 'users', userId));
+      await deleteDoc(doc(db, "bannedUsers", userId)).catch(() => {});
+      await deleteDoc(doc(db, "users", userId));
 
       setViewingUser(null);
-      setActiveTab('Feed');
-      alert(t('deleteUserSuccess'));
+      setActiveTab("Feed");
+      alert(t("deleteUserSuccess"));
     } catch (error) {
-      console.error('Failed to delete user', error);
-      alert(t('deleteUserFailed'));
+      console.error("Failed to delete user", error);
+      alert(t("deleteUserFailed"));
     }
   };
 
   // Re-sync viewingUser if we switch to profile tab naturally
   useEffect(() => {
-    if (activeTab === 'Profile' && !viewingUser) {
+    if (activeTab === "Profile" && !viewingUser) {
       setViewingUser(user);
-    } else if (activeTab !== 'Profile') {
+    } else if (activeTab !== "Profile") {
       // Reset viewingUser to self when navigating away from Profile tab,
       // so next time we click Profile it shows our own.
       setViewingUser(user);
     }
-    if (activeTab !== 'Feed') {
+    if (activeTab !== "Feed") {
       setFocusedVibeId(undefined);
     }
   }, [activeTab]);
@@ -347,21 +541,29 @@ function VibeSpace() {
     setEditBioMode(false);
     setShowBioModal(false);
     setIsProfileViewerOpen(false);
-    setNewName('');
-    setNewBio('');
+    setNewName("");
+    setNewBio("");
 
     if (!user) {
       setViewingUser(null);
       return;
     }
 
+    // Prevent overwriting a restored other user profile on initial auth state load
+    if (isInitialAuthLoadRef.current) {
+      isInitialAuthLoadRef.current = false;
+      if (viewingUser && viewingUser.uid !== user.uid) {
+        return;
+      }
+    }
+
     setViewingUser((current: any) => {
       if (!current) {
-        return activeTab === 'Profile' ? user : null;
+        return activeTab === "Profile" ? user : null;
       }
 
       if (current.uid !== user.uid) {
-        return activeTab === 'Profile' ? user : null;
+        return activeTab === "Profile" ? user : null;
       }
 
       return { ...current, ...user };
@@ -369,7 +571,7 @@ function VibeSpace() {
   }, [user?.uid]);
 
   const handleTabChange = (tabId: string) => {
-    if (tabId === 'Profile') {
+    if (tabId === "Profile") {
       setViewingUser(user);
     }
     setActiveTab(tabId);
@@ -382,7 +584,7 @@ function VibeSpace() {
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ repeat: Infinity, duration: 1.5 }}
           className="text-4xl font-extrabold tracking-tighter text-vibe-accent"
-          style={{ textShadow: '0 0 20px rgba(0, 255, 209, 0.4)' }}
+          style={{ textShadow: "0 0 20px rgba(0, 255, 209, 0.4)" }}
         >
           V
         </motion.div>
@@ -399,258 +601,412 @@ function VibeSpace() {
       <FloatingUploadIndicator />
       <div className="flex-1 grid h-full w-full grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[280px_1fr_300px] gap-px bg-vibe-line">
         {/* Sidebar Left */}
-        <SidebarLeft activeTab={activeTab} setActiveTab={handleTabChange} activeMood={activeMood} setActiveMood={setActiveMood} />
-        
+        <SidebarLeft
+          activeTab={activeTab}
+          setActiveTab={handleTabChange}
+          activeMood={activeMood}
+          setActiveMood={setActiveMood}
+        />
+
         {/* Main Feed Container */}
         <div className="relative w-full h-full bg-[#050505] overflow-hidden">
-          
-          {/* Desktop Logout Icon (Top Right of Feed Frame) */}
-          <div className="hidden md:flex absolute top-6 right-6 lg:right-8 z-[60]">
-             <button 
-               onClick={logout} 
-               className="p-3 text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all flex items-center justify-center backdrop-blur-md border border-transparent hover:border-red-500/30 shadow-lg" 
-               title={t('logOut')}
-             >
-                <LogOut size={20} />
-             </button>
+          {/* Desktop Navigation & Action Buttons */}
+          <div className="hidden md:flex absolute top-6 left-6 z-[60] items-center gap-4">
+            {/* Browser-like controls: Back, Forward, Refresh */}
+            <div className="vibe-glass-surface flex items-center rounded-full px-2 py-1.5 gap-1.5 shadow-lg">
+              <button
+                onClick={handleGoBack}
+                disabled={historyIndex <= 0}
+                className={`p-2 rounded-full transition-all flex items-center justify-center ${
+                  historyIndex > 0
+                    ? "text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    : "text-white/25 cursor-not-allowed"
+                }`}
+                title="Back"
+              >
+                <ArrowLeft size={16} strokeWidth={2.5} />
+              </button>
+              <button
+                onClick={handleGoForward}
+                disabled={historyIndex >= navigationHistory.length - 1}
+                className={`p-2 rounded-full transition-all flex items-center justify-center ${
+                  historyIndex < navigationHistory.length - 1
+                    ? "text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                    : "text-white/25 cursor-not-allowed"
+                }`}
+                title="Forward"
+              >
+                <ArrowRight size={16} strokeWidth={2.5} />
+              </button>
+              <button
+                onClick={handleRefresh}
+                className="p-2 rounded-full transition-all flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+                title="Refresh"
+              >
+                <RotateCw size={16} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
 
-          <main className={`w-full h-full flex flex-col items-center justify-start no-scrollbar md:pb-0 ${activeTab === 'Feed' || isProfileViewerOpen ? 'overflow-hidden pb-0' : 'overflow-y-auto scroll-smooth pb-[72px]'}`}>
-            <div className={
-              activeTab === 'Profile'
-                ? 'w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col'
-                : activeTab === 'Feed'
-                  ? 'w-full h-full flex flex-col'
-                  : 'w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col'
-            }>
-            {activeTab === 'Feed' ? (
-              <Feed activeMood={activeMood} initialVibeId={focusedVibeId} onOpenProfile={handleOpenProfile} isAdmin={isAdmin} />
-            ) : activeTab === 'Profile' && viewingUser ? (
-              <div className="flex flex-col items-start justify-start h-full sm:h-[100dvh] pt-10 px-4 md:px-6 lg:px-8 w-full relative">
-                
-                {/* Mobile Logout Icon Top Right */}
-                {!isProfileViewerOpen && (
-                <div className="absolute top-4 right-4 md:hidden z-20">
-                  <button onClick={logout} className="p-3 text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors flex items-center justify-center">
-                    <LogOut size={24} />
-                  </button>
-                </div>
-                )}
+          {/* Desktop Logout Icon (Top Right of Feed Frame) */}
+          <div className="hidden md:flex absolute top-6 right-6 lg:right-8 z-[60]">
+            <button
+              onClick={logout}
+              className="p-3 text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all flex items-center justify-center backdrop-blur-md border border-transparent hover:border-red-500/30 shadow-lg"
+              title={t("logOut")}
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
 
-                {/* Ambient Glassmorphism Hero Banner */}
-                {viewingUser.photoURL && (
-                   <div className="absolute inset-x-0 top-0 h-[42vh] overflow-hidden pointer-events-none select-none z-0">
-                      <img src={viewingUser.photoURL} alt="" className="w-full h-full object-cover blur-[120px] saturate-[1.6] scale-[1.35] opacity-55 transform-gpu" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,255,209,0.12),transparent_45%)]" />
-                      <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/8 via-[#03130f]/55 to-[#050505]" />
-                      <div className="absolute inset-x-6 top-6 h-40 rounded-[36px] border border-white/8 bg-white/[0.03] backdrop-blur-2xl" />
-                   </div>
-                )}
-
-                {/* Context Layer */}
-                <div className="relative z-10 w-full flex flex-col">
-                  {/* Profile Header Row (YouTube Style) */}
-                  <div className="mb-6 mt-4 flex w-full flex-col gap-5 rounded-[32px] border border-white/8 bg-white/[0.03] p-5 backdrop-blur-2xl sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-center space-x-4 sm:space-x-6 min-w-0">
-                  <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 relative group">
-                     <Avatar
-                       src={viewingUser.photoURL}
-                       name={viewingUser.displayName}
-                       alt="Profile"
-                       className="h-full w-full border-2 border-vibe-muted bg-[#050505]"
-                       textClassName="text-3xl sm:text-4xl"
-                     />
-                     {isViewingOwnProfile && (
-                       <div 
-                         className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                         onClick={() => !isUploadingPhoto && fileInputRef.current?.click()}
-                       >
-                         {isUploadingPhoto ? (
-                           <span className="text-xs font-bold uppercase tracking-[2px] text-white">
-                             Uploading
-                           </span>
-                         ) : (
-                           <Camera className="text-white" size={24} />
-                         )}
-                       </div>
-                     )}
-                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} disabled={isUploadingPhoto} />
-                  </div>
-                  
-                  <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
-                    <div className="flex items-center space-x-2 w-full">
-                       <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold tracking-tighter text-white truncate">
-                         {viewingUser.displayName || t('anonymous')}
-                       </h2>
-                       {isViewingOwnProfile && (
-                         <Edit2 size={14} className="text-vibe-muted hover:text-white cursor-pointer transition-colors shrink-0" onClick={() => { setNewName(viewingUser.displayName || ''); setEditNameMode(true); }} />
-                       )}
-                    </div>
-                    <p className="text-vibe-muted font-bold text-sm sm:text-base mt-1 truncate drop-shadow-md">
-                       @{viewingUser.displayName?.toLowerCase().replace(/\s+/g, '') || viewingUser.uid.substring(0,6)}
-                    </p>
-                    <p className="text-vibe-muted text-xs sm:text-sm mt-1 truncate drop-shadow-md">
-                       <span className="text-white font-bold">{userStats.video}</span> {t('postCountLabel')} • <span className="text-white font-bold">{userStats.vibes}</span> {t('vibesLabel')}
-                    </p>
-                  </div>
-                </div>
-
-                  {isAdmin && isViewingOtherProfile && (
-                    <div className="mb-6 flex w-full flex-col gap-3 sm:w-auto sm:min-w-[220px]">
+          <main
+            className={`w-full h-full flex flex-col items-center justify-start no-scrollbar md:pb-0 ${activeTab === "Feed" || isProfileViewerOpen ? "overflow-hidden pb-0" : "overflow-y-auto scroll-smooth pb-[72px]"}`}
+          >
+            <div
+              className={
+                activeTab === "Profile"
+                  ? "w-full max-w-[1120px] min-h-full px-0 md:px-6 py-4 md:py-8 flex flex-col"
+                  : activeTab === "Feed"
+                    ? "w-full h-full flex flex-col"
+                    : "w-full sm:max-w-[480px] lg:max-w-[550px] sm:py-6 md:py-10 min-h-full flex flex-col"
+              }
+            >
+              {activeTab === "Feed" ? (
+                <Feed
+                  activeMood={activeMood}
+                  initialVibeId={focusedVibeId}
+                  onOpenProfile={handleOpenProfile}
+                  isAdmin={isAdmin}
+                  onActiveVibeChange={setActiveVibe}
+                />
+              ) : activeTab === "Profile" && viewingUser ? (
+                <div className="flex flex-col items-start justify-start h-full sm:h-[100dvh] pt-10 px-4 md:px-6 lg:px-8 w-full relative">
+                  {/* Mobile Logout Icon Top Right */}
+                  {!isProfileViewerOpen && (
+                    <div className="absolute top-4 right-4 md:hidden z-20">
                       <button
-                        onClick={handleToggleBlockUser}
-                        className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[2px] transition-all ${
-                          viewingUser.isBanned
-                            ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20'
-                            : 'border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20'
-                        }`}
+                        onClick={logout}
+                        className="p-3 text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors flex items-center justify-center"
                       >
-                        <ShieldAlert size={16} />
-                        {viewingUser.isBanned ? t('unblockUser') : t('blockUser')}
-                      </button>
-                      <p className="text-left text-[11px] uppercase tracking-[2px] text-vibe-muted">
-                        {t('status')}: {viewingUser.isBanned ? t('blocked') : t('active')}
-                      </p>
-                      <button
-                        onClick={handleDeleteUser}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-black uppercase tracking-[2px] text-red-300 transition-all hover:bg-red-500/20"
-                      >
-                        <Trash2 size={16} />
-                        {t('deleteUser')}
+                        <LogOut size={24} />
                       </button>
                     </div>
                   )}
-                  </div>
 
-                {/* Profile Description */}
-                <div className="w-full text-left mb-6 text-sm text-vibe-muted rounded-[28px] border border-white/6 bg-black/20 p-4 sm:p-5">
-                   {editBioMode && isViewingOwnProfile ? (
-                      <div className="flex flex-col space-y-2 w-full sm:w-3/4">
-                         <textarea 
-                           value={newBio} 
-                           onChange={e => setNewBio(e.target.value)} 
-                           className="w-full bg-[#111] p-3 rounded-xl border border-vibe-line text-white focus:border-vibe-accent outline-none no-scrollbar resize-none" 
-                           rows={3} 
-                           placeholder={t('writeDescription')}
-                         />
-                         <div className="flex space-x-2">
-                           <button onClick={handleUpdateBio} className="px-4 py-1.5 text-xs bg-vibe-accent text-vibe-bg font-bold rounded-lg hover:opacity-80 transition-opacity">{t('save')}</button>
-                           <button onClick={() => setEditBioMode(false)} className="px-4 py-1.5 text-xs border border-vibe-line text-vibe-muted font-bold rounded-lg hover:text-white transition-colors">{t('cancel')}</button>
-                         </div>
+                  {/* Ambient Glassmorphism Hero Banner */}
+                  {viewingUser.photoURL && (
+                    <div className="absolute inset-x-0 top-0 h-[42vh] overflow-hidden pointer-events-none select-none z-0">
+                      <img
+                        src={viewingUser.photoURL}
+                        alt=""
+                        className="w-full h-full object-cover blur-[120px] saturate-[1.6] scale-[1.35] opacity-55 transform-gpu"
+                      />
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,255,209,0.12),transparent_45%)]" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/8 via-[#03130f]/55 to-[#050505]" />
+                      <div className="absolute inset-x-6 top-6 h-40 rounded-[36px] border border-white/8 bg-white/[0.03] backdrop-blur-2xl" />
+                    </div>
+                  )}
+
+                  {/* Context Layer */}
+                  <div className="relative z-10 w-full flex flex-col">
+                    {/* Profile Header Row (YouTube Style) */}
+                    <div className="mb-6 mt-4 flex w-full flex-col gap-5 rounded-[32px] border border-white/8 bg-white/[0.03] p-5 backdrop-blur-2xl sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex items-center space-x-4 sm:space-x-6 min-w-0">
+                        <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 relative group">
+                          <Avatar
+                            src={viewingUser.photoURL}
+                            name={viewingUser.displayName}
+                            alt="Profile"
+                            className="h-full w-full border-2 border-vibe-muted bg-[#050505]"
+                            textClassName="text-3xl sm:text-4xl"
+                          />
+                          {isViewingOwnProfile && (
+                            <div
+                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                              onClick={() =>
+                                !isUploadingPhoto &&
+                                fileInputRef.current?.click()
+                              }
+                            >
+                              {isUploadingPhoto ? (
+                                <span className="text-xs font-bold uppercase tracking-[2px] text-white">
+                                  Uploading
+                                </span>
+                              ) : (
+                                <Camera className="text-white" size={24} />
+                              )}
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handlePhotoUpload}
+                            disabled={isUploadingPhoto}
+                          />
+                        </div>
+
+                        <div className="flex flex-col items-start justify-center flex-1 min-w-0 text-left">
+                          <div className="flex items-center space-x-2 w-full">
+                            <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold tracking-tighter text-white truncate">
+                              {viewingUser.displayName || t("anonymous")}
+                            </h2>
+                            {isViewingOwnProfile && (
+                              <Edit2
+                                size={14}
+                                className="text-vibe-muted hover:text-white cursor-pointer transition-colors shrink-0"
+                                onClick={() => {
+                                  setNewName(viewingUser.displayName || "");
+                                  setEditNameMode(true);
+                                }}
+                              />
+                            )}
+                          </div>
+                          <p className="text-vibe-muted font-bold text-sm sm:text-base mt-1 truncate drop-shadow-md">
+                            @
+                            {viewingUser.displayName
+                              ?.toLowerCase()
+                              .replace(/\s+/g, "") ||
+                              viewingUser.uid.substring(0, 6)}
+                          </p>
+                          <p className="text-vibe-muted text-xs sm:text-sm mt-1 truncate drop-shadow-md">
+                            <span className="text-white font-bold">
+                              {userStats.video}
+                            </span>{" "}
+                            {t("postCountLabel")} •{" "}
+                            <span className="text-white font-bold">
+                              {userStats.vibes}
+                            </span>{" "}
+                            {t("vibesLabel")}
+                          </p>
+                        </div>
                       </div>
-                   ) : (
-                      <div className="relative group w-full">
-                         <p className="whitespace-pre-wrap leading-relaxed inline">
-                            {viewingUser.bio ? (
-                               viewingUser.bio.length > bioMaxLength 
-                                 ? viewingUser.bio.substring(0, bioMaxLength) + ' '
-                                 : viewingUser.bio
-                            ) : isViewingOwnProfile ? t('noProfileDescriptionSelf') : t('noProfileDescriptionOther')}
-                         </p>
-                         {viewingUser.bio && viewingUser.bio.length > bioMaxLength && (
-                           <button onClick={() => setShowBioModal(true)} className="inline font-bold text-white hover:text-vibe-accent cursor-pointer ml-1">
-                             {t('viewMore')}
-                           </button>
-                         )}
-                         {isViewingOwnProfile && (
-                           <button onClick={() => { setNewBio(viewingUser.bio || ''); setEditBioMode(true); }} className="ml-2 text-vibe-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-white items-center">
+
+                      {isAdmin && isViewingOtherProfile && (
+                        <div className="mb-6 flex w-full flex-col gap-3 sm:w-auto sm:min-w-[220px]">
+                          <button
+                            onClick={handleToggleBlockUser}
+                            className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[2px] transition-all ${
+                              viewingUser.isBanned
+                                ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
+                                : "border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                            }`}
+                          >
+                            <ShieldAlert size={16} />
+                            {viewingUser.isBanned
+                              ? t("unblockUser")
+                              : t("blockUser")}
+                          </button>
+                          <p className="text-left text-[11px] uppercase tracking-[2px] text-vibe-muted">
+                            {t("status")}:{" "}
+                            {viewingUser.isBanned ? t("blocked") : t("active")}
+                          </p>
+                          <button
+                            onClick={handleDeleteUser}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs font-black uppercase tracking-[2px] text-red-300 transition-all hover:bg-red-500/20"
+                          >
+                            <Trash2 size={16} />
+                            {t("deleteUser")}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Profile Description */}
+                    <div className="w-full text-left mb-6 text-sm text-vibe-muted rounded-[28px] border border-white/6 bg-black/20 p-4 sm:p-5">
+                      {editBioMode && isViewingOwnProfile ? (
+                        <div className="flex flex-col space-y-2 w-full sm:w-3/4">
+                          <textarea
+                            value={newBio}
+                            onChange={(e) => setNewBio(e.target.value)}
+                            className="w-full bg-[#111] p-3 rounded-xl border border-vibe-line text-white focus:border-vibe-accent outline-none no-scrollbar resize-none"
+                            rows={3}
+                            placeholder={t("writeDescription")}
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={handleUpdateBio}
+                              className="px-4 py-1.5 text-xs bg-vibe-accent text-vibe-bg font-bold rounded-lg hover:opacity-80 transition-opacity"
+                            >
+                              {t("save")}
+                            </button>
+                            <button
+                              onClick={() => setEditBioMode(false)}
+                              className="px-4 py-1.5 text-xs border border-vibe-line text-vibe-muted font-bold rounded-lg hover:text-white transition-colors"
+                            >
+                              {t("cancel")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative group w-full">
+                          <p className="whitespace-pre-wrap leading-relaxed inline">
+                            {viewingUser.bio
+                              ? viewingUser.bio.length > bioMaxLength
+                                ? viewingUser.bio.substring(0, bioMaxLength) +
+                                  " "
+                                : viewingUser.bio
+                              : isViewingOwnProfile
+                                ? t("noProfileDescriptionSelf")
+                                : t("noProfileDescriptionOther")}
+                          </p>
+                          {viewingUser.bio &&
+                            viewingUser.bio.length > bioMaxLength && (
+                              <button
+                                onClick={() => setShowBioModal(true)}
+                                className="inline font-bold text-white hover:text-vibe-accent cursor-pointer ml-1"
+                              >
+                                {t("viewMore")}
+                              </button>
+                            )}
+                          {isViewingOwnProfile && (
+                            <button
+                              onClick={() => {
+                                setNewBio(viewingUser.bio || "");
+                                setEditBioMode(true);
+                              }}
+                              className="ml-2 text-vibe-muted opacity-0 group-hover:opacity-100 transition-opacity hover:text-white items-center"
+                            >
                               <Edit2 size={12} className="inline mb-1" />
-                           </button>
-                         )}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Modals for Editing Name & Viewing full Bio */}
+                    {editNameMode && isViewingOwnProfile && (
+                      <div className="absolute inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-[#111] p-6 rounded-3xl w-full max-w-sm border border-vibe-line space-y-4 shadow-2xl">
+                          <h3 className="text-white font-bold text-lg">
+                            {t("editProfileName")}
+                          </h3>
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className="w-full bg-[#050505] border border-vibe-line p-3 rounded-xl text-white outline-none focus:border-vibe-accent"
+                            autoFocus
+                          />
+                          <div className="flex justify-end space-x-2 mt-4">
+                            <button
+                              onClick={() => setEditNameMode(false)}
+                              className="px-4 py-2 text-sm font-bold text-vibe-muted hover:text-white"
+                            >
+                              {t("cancel")}
+                            </button>
+                            <button
+                              onClick={handleUpdateName}
+                              className="px-4 py-2 text-sm font-bold bg-vibe-accent text-vibe-bg rounded-xl hover:scale-105 transition-transform"
+                            >
+                              {t("save")}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                   )}
-                </div>
-                
-                {/* Modals for Editing Name & Viewing full Bio */}
-                {editNameMode && isViewingOwnProfile && (
-                   <div className="absolute inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-                      <div className="bg-[#111] p-6 rounded-3xl w-full max-w-sm border border-vibe-line space-y-4 shadow-2xl">
-                         <h3 className="text-white font-bold text-lg">{t('editProfileName')}</h3>
-                         <input type="text" value={newName} onChange={e => setNewName(e.target.value)} className="w-full bg-[#050505] border border-vibe-line p-3 rounded-xl text-white outline-none focus:border-vibe-accent" autoFocus />
-                         <div className="flex justify-end space-x-2 mt-4">
-                           <button onClick={() => setEditNameMode(false)} className="px-4 py-2 text-sm font-bold text-vibe-muted hover:text-white">{t('cancel')}</button>
-                           <button onClick={handleUpdateName} className="px-4 py-2 text-sm font-bold bg-vibe-accent text-vibe-bg rounded-xl hover:scale-105 transition-transform">{t('save')}</button>
-                         </div>
-                      </div>
-                   </div>
-                )}
-                
-                <AnimatePresence>
-                   {showBioModal && (
-                      <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-0 z-[70] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-                         <motion.div initial={{scale:0.95}} animate={{scale:1}} exit={{scale:0.95}} className="bg-[#111] w-full max-w-md p-6 border border-vibe-line rounded-3xl relative max-h-[80vh] flex flex-col shadow-2xl">
-                            <button onClick={() => setShowBioModal(false)} className="absolute top-4 right-4 p-2 text-vibe-muted hover:text-white bg-black/50 rounded-full"><X size={18}/></button>
-                            <h3 className="text-white font-bold mb-4 border-b border-vibe-line pb-4 text-lg">{t('description')}</h3>
+                    )}
+
+                    <AnimatePresence>
+                      {showBioModal && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-[70] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm"
+                        >
+                          <motion.div
+                            initial={{ scale: 0.95 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.95 }}
+                            className="bg-[#111] w-full max-w-md p-6 border border-vibe-line rounded-3xl relative max-h-[80vh] flex flex-col shadow-2xl"
+                          >
+                            <button
+                              onClick={() => setShowBioModal(false)}
+                              className="absolute top-4 right-4 p-2 text-vibe-muted hover:text-white bg-black/50 rounded-full"
+                            >
+                              <X size={18} />
+                            </button>
+                            <h3 className="text-white font-bold mb-4 border-b border-vibe-line pb-4 text-lg">
+                              {t("description")}
+                            </h3>
                             <div className="overflow-y-auto no-scrollbar flex-1 pb-4">
                               <p className="text-vibe-muted whitespace-pre-wrap leading-relaxed text-sm">
-                                 {viewingUser.bio}
+                                {viewingUser.bio}
                               </p>
                             </div>
-                         </motion.div>
-                      </motion.div>
-                   )}
-                </AnimatePresence>
-                
-                <div className="pt-6 w-full flex-1 flex flex-col items-center">
-                  <div className="w-full flex border-b border-vibe-line mb-4 pb-2">
-                     <button 
-                       className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === 'posts' ? 'text-vibe-accent' : 'text-vibe-muted'}`}
-                       onClick={() => setProfileTab('posts')}
-                     >
-                        {t('vibes')}
-                     </button>
-                     <button 
-                       className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === 'saved' ? 'text-vibe-accent' : 'text-vibe-muted'}`}
-                       onClick={() => setProfileTab('saved')}
-                     >
-                        {t('saved')}
-                     </button>
+                          </motion.div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="pt-6 w-full flex-1 flex flex-col items-center">
+                      <div className="w-full flex border-b border-vibe-line mb-4 pb-2">
+                        <button
+                          className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === "posts" ? "text-vibe-accent" : "text-vibe-muted"}`}
+                          onClick={() => setProfileTab("posts")}
+                        >
+                          {t("vibes")}
+                        </button>
+                        <button
+                          className={`flex-1 text-[11px] font-bold uppercase tracking-[2px] transition-colors ${profileTab === "saved" ? "text-vibe-accent" : "text-vibe-muted"}`}
+                          onClick={() => setProfileTab("saved")}
+                        >
+                          {t("saved")}
+                        </button>
+                      </div>
+                      <div className="flex-1 w-full overflow-y-auto no-scrollbar">
+                        <ProfileGrid
+                          userId={viewingUser.uid}
+                          mode={profileTab}
+                          onViewerStateChange={setIsProfileViewerOpen}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 w-full overflow-y-auto no-scrollbar">
-                    <ProfileGrid userId={viewingUser.uid} mode={profileTab} onViewerStateChange={setIsProfileViewerOpen} />
+                </div>
+              ) : activeTab === "Explore" ? (
+                <Explore onOpenProfile={handleOpenProfile} />
+              ) : activeTab === "Notifications" ? (
+                <Notifications onOpenVibe={handleOpenVibe} />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-4 px-4">
+                  <div className="w-16 h-16 rounded-full bg-vibe-line flex items-center justify-center text-vibe-muted">
+                    <Ghost size={32} />
                   </div>
+                  <h2 className="text-2xl font-bold tracking-tighter text-vibe-ink uppercase">
+                    {activeTab}
+                  </h2>
+                  <p className="text-vibe-muted">{t("appUnderConstruction")}</p>
                 </div>
-                </div>
-              </div>
-            ) : activeTab === 'Explore' ? (
-              <Explore onOpenProfile={handleOpenProfile} />
-            ) : activeTab === 'Notifications' ? (
-              <Notifications onOpenVibe={handleOpenVibe} />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-4 px-4">
-                <div className="w-16 h-16 rounded-full bg-vibe-line flex items-center justify-center text-vibe-muted">
-                   <Ghost size={32} />
-                </div>
-                <h2 className="text-2xl font-bold tracking-tighter text-vibe-ink uppercase">{activeTab}</h2>
-                <p className="text-vibe-muted">{t('appUnderConstruction')}</p>
-              </div>
-            )}
+              )}
             </div>
           </main>
         </div>
 
         {/* Sidebar Right */}
-        <SidebarRight />
+        <SidebarRight activeVibe={activeVibe} />
       </div>
 
       {/* Mobile Bottom Navigation */}
       {!isProfileViewerOpen && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-vibe-bg/95 border-t border-vibe-line backdrop-blur-xl flex items-center justify-around px-2 py-3 pb-7 z-40">
           {[
-            { id: 'Feed', icon: Command },
-            { id: 'Explore', icon: Search },
-            { id: 'Create', icon: Plus, isCreate: true },
-            { id: 'Messages', icon: MessageCircle },
-            { id: 'Notifications', icon: Bell },
-            { id: 'Profile', icon: User },
-          ].map((tab) => (
+            { id: "Feed", icon: Command },
+            { id: "Explore", icon: Search },
+            { id: "Create", icon: Plus, isCreate: true },
+            { id: "Notifications", icon: Bell },
+            { id: "Profile", icon: User },
+          ].map((tab) =>
             tab.isCreate ? (
               <button
                 key="CreateVibeBtn"
                 onClick={() => {
                   if (Capacitor.isNativePlatform()) {
-                    Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
-                    trackEvent('create_vibe', { source: 'mobile_nav' });
+                    Haptics.impact({ style: ImpactStyle.Heavy }).catch(
+                      () => {},
+                    );
+                    trackEvent("create_vibe", { source: "mobile_nav" });
                   }
                   setShowCreate(true);
                 }}
@@ -665,54 +1021,48 @@ function VibeSpace() {
                   if (Capacitor.isNativePlatform()) {
                     Haptics.selectionStart().catch(() => {});
                   }
-                  if (tab.id === 'Explore') {
-                    setActiveTab('Explore');
-                  } else if (tab.id === 'Messages') {
-                    setShowMessages(true);
-                  } else if (tab.id === 'Notifications') {
-                    setActiveTab('Notifications');
-                    trackEvent('view_notifications' as any);
-                  } else if (tab.id === 'Profile') {
-                    setActiveTab('Profile');
-                  } else if (tab.id === 'Feed') {
-                    setActiveTab('Feed');
+                  if (tab.id === "Explore") {
+                    setActiveTab("Explore");
+                  } else if (tab.id === "Notifications") {
+                    setActiveTab("Notifications");
+                    trackEvent("view_notifications" as any);
+                  } else if (tab.id === "Profile") {
+                    setActiveTab("Profile");
+                  } else if (tab.id === "Feed") {
+                    setActiveTab("Feed");
                   }
                 }}
                 className={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] rounded-xl transition-colors ${
                   activeTab === tab.id
-                    ? 'text-vibe-accent bg-vibe-accent/10'
-                    : 'text-vibe-muted hover:text-white'
+                    ? "text-vibe-accent bg-vibe-accent/10"
+                    : "text-vibe-muted hover:text-white"
                 }`}
               >
                 <tab.icon size={26} />
-                <span className="text-[9px] font-medium mt-1 uppercase tracking-wider">{tab.id}</span>
+                <span className="text-[9px] font-medium mt-1 uppercase tracking-wider">
+                  {tab.id}
+                </span>
               </button>
-            )
-          ))}
+            ),
+          )}
         </div>
       )}
 
       <AnimatePresence>
-        {showCreate && (
-          <CreateVibe onClose={() => setShowCreate(false)} />
-        )}
+        {showCreate && <CreateVibe onClose={() => setShowCreate(false)} />}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showMessages && (
-          <Messages onClose={() => setShowMessages(false)} />
-        )}
-      </AnimatePresence>
 
-      <SearchModal 
-        isOpen={showSearch} 
+
+      <SearchModal
+        isOpen={showSearch}
         onClose={() => setShowSearch(false)}
         onSelectUser={(userId) => {
-          setActiveTab('Profile');
+          setActiveTab("Profile");
         }}
         onSelectHashtag={(tag) => {
           setActiveMood(tag);
-          setActiveTab('Feed');
+          setActiveTab("Feed");
         }}
       />
     </div>
@@ -743,18 +1093,18 @@ function FloatingUploadIndicator() {
             className="flex h-12 w-12 items-center justify-center rounded-full"
             style={ringStyle}
             title={
-              activeUpload.status === 'error'
-                ? activeUpload.errorMessage || 'Upload gagal'
-                : activeUpload.status === 'success'
-                  ? 'Upload selesai'
+              activeUpload.status === "error"
+                ? activeUpload.errorMessage || "Upload gagal"
+                : activeUpload.status === "success"
+                  ? "Upload selesai"
                   : `Uploading ${progress}%`
             }
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#050505] text-[10px] font-bold text-vibe-ink">
-              {activeUpload.status === 'error'
-                ? '!'
-                : activeUpload.status === 'success'
-                  ? '100'
+              {activeUpload.status === "error"
+                ? "!"
+                : activeUpload.status === "success"
+                  ? "100"
                   : progress}
             </div>
           </div>

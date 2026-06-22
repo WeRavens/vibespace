@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Heart,
@@ -72,6 +72,7 @@ interface FeedItemProps {
   onToggleComments?: (open: boolean) => void;
   isAdmin?: boolean;
   isLoggedIn?: boolean;
+  onActiveChange?: (vibe: Vibe) => void;
 }
 
 const REACTION_EMOJIS = ["🔥", "❤️", "🤣", "😢", "🙌", "✨", "💯", "🤯"];
@@ -90,7 +91,8 @@ export function Feed({
   onOpenProfile,
   userFilter,
   onClose,
-  isAdmin: propIsAdmin
+  isAdmin: propIsAdmin,
+  onActiveVibeChange
 }: {
   activeMood: string | null;
   initialVibeId?: string;
@@ -98,6 +100,7 @@ export function Feed({
   userFilter?: string;
   onClose?: () => void;
   isAdmin?: boolean;
+  onActiveVibeChange?: (vibe: Vibe | null) => void;
 }) {
   const [pool, setPool] = useState<Vibe[]>([]);
   const [vibes, setVibes] = useState<Vibe[]>([]);
@@ -106,8 +109,19 @@ export function Feed({
   const { user } = useAuth();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const isAppendingRef = useRef(false);
 
   const isAdmin = propIsAdmin ?? ((user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin'));
+
+  useEffect(() => {
+    if (vibes.length === 0) {
+      onActiveVibeChange?.(null);
+    }
+  }, [vibes, onActiveVibeChange]);
+
+  useEffect(() => {
+    return () => onActiveVibeChange?.(null);
+  }, [onActiveVibeChange]);
 
   // Helper to shuffle array
   const shuffle = (array: any[]) => {
@@ -190,23 +204,45 @@ export function Feed({
     return () => unsubscribe();
   }, [activeMood, userFilter, initialVibeId]);
 
+  const appendExtraVibes = useCallback(() => {
+    if (pool.length === 0 || isAppendingRef.current) return;
+
+    isAppendingRef.current = true;
+
+    const extraVibes = shuffle(pool).map(v => ({
+      ...v,
+      id: `${v.id}-repeat-${Math.random().toString(36).substr(2, 5)}`
+    }));
+    setVibes(prev => [...prev, ...extraVibes]);
+
+    window.setTimeout(() => {
+      isAppendingRef.current = false;
+    }, 350);
+  }, [pool]);
+
   // Infinite Scroll Observer
   useEffect(() => {
     if (vibes.length === 0 || pool.length === 0) return;
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        const extraVibes = shuffle(pool).map(v => ({
-          ...v,
-          id: `${v.id}-repeat-${Math.random().toString(36).substr(2, 5)}`
-        }));
-        setVibes(prev => [...prev, ...extraVibes]);
+        appendExtraVibes();
       }
     }, { threshold: 0.1 });
 
     if (sentinelRef.current) observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [pool, vibes.length]);
+  }, [appendExtraVibes, pool.length, vibes.length]);
+
+  const handleFeedScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (pool.length === 0) return;
+
+    const target = e.currentTarget;
+    const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (remaining < target.clientHeight * 1.25) {
+      appendExtraVibes();
+    }
+  }, [appendExtraVibes, pool.length]);
 
   const handleReact = async (vibeId: string, emoji: string) => {
     if (!user) return;
@@ -305,7 +341,10 @@ export function Feed({
         </div>
       )}
 
-      <div className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black feed-scroll">
+      <div
+        onScroll={handleFeedScroll}
+        className="w-full flex flex-col h-full overflow-y-auto snap-y snap-mandatory no-scrollbar select-none overscroll-y-contain bg-black feed-scroll"
+      >
         {vibes.map((vibe, index) => (
           <MemoizedFeedItem
             key={vibe.id}
@@ -316,6 +355,7 @@ export function Feed({
             onOpenProfile={onOpenProfile}
             onToggleComments={setIsCommentOpen}
             isAdmin={isAdmin}
+            onActiveChange={onActiveVibeChange}
           />
         ))}
         {/* Sentinel for infinite loop */}
@@ -336,7 +376,7 @@ const MemoizedFeedItem = React.memo(FeedItem, (prevProps, nextProps) => {
   );
 });
 
-export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments, isAdmin: propIsAdmin, isLoggedIn }: FeedItemProps) {
+export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onToggleComments, isAdmin: propIsAdmin, isLoggedIn, onActiveChange }: FeedItemProps) {
   const { user } = useAuth();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -344,6 +384,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
   const [showAllReactions, setShowAllReactions] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const backgroundVideoRef = useRef<HTMLVideoElement>(null);
 
   const isAdmin = propIsAdmin ?? ((user?.email || '').toLowerCase().includes('ikfah') || (user?.email || '').toLowerCase().includes('admin'));
   const isOwner = user?.uid === vibe.userId;
@@ -368,6 +409,19 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [vibe.id]);
+
+  // Active Vibe Tracking
+  useEffect(() => {
+    if (!containerRef.current || !onActiveChange) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        onActiveChange(vibe);
+      }
+    }, { threshold: 0.6 });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [vibe.id, onActiveChange]);
 
   useEffect(() => {
     onToggleComments?.(showComments);
@@ -415,13 +469,27 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
         {vibe.mediaUrl ? (
           <>
             {/* Blurred Background Layer */}
-            <div className="absolute inset-0 z-0">
-               <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-30 blur-3xl scale-125" />
+            <div className="absolute inset-0 z-0 overflow-hidden">
+               {vibe.type === 'video' ? (
+                 <video
+                   ref={backgroundVideoRef}
+                   src={vibe.mediaUrl}
+                   autoPlay
+                   muted
+                   loop
+                   playsInline
+                   preload="metadata"
+                   className="h-full w-full scale-125 object-cover opacity-35 blur-3xl saturate-150"
+                 />
+               ) : (
+                 <img src={vibe.mediaUrl} alt="" className="h-full w-full object-cover opacity-35 blur-3xl scale-125 saturate-150" />
+               )}
+               <div className="absolute inset-0 bg-white/[0.035] backdrop-blur-[2px]" />
             </div>
             {/* Main Content Layer */}
             <div className="relative z-10 h-full w-full flex items-center justify-center">
                {vibe.type === 'video' ? (
-                 <VideoBackdrop src={vibe.mediaUrl} />
+                 <VideoBackdrop src={vibe.mediaUrl} backgroundVideoRef={backgroundVideoRef} />
                ) : (
                  <img src={vibe.mediaUrl} alt="" className="h-full w-full object-contain opacity-100" />
                )}
@@ -430,11 +498,11 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-vibe-accent/20 via-black to-vibe-bg" />
         )}
-        <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/86 via-black/8 to-black/44" />
       </div>
 
       {/* Content Bottom Left */}
-      <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col p-6 pb-28 md:pb-12 pointer-events-none">
+      <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col p-6 pb-28 md:pb-24 pointer-events-none">
         <div className="flex flex-col space-y-4 max-w-[85%]">
           {/* Profile Row */}
           <div className="flex items-center space-x-3 pointer-events-auto cursor-pointer" onClick={() => !vibe.isAnonymous && onOpenProfile(vibe.userId)}>
@@ -514,7 +582,7 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
       </div>
 
       {/* Floating Reactions Right */}
-      <div className="absolute right-4 bottom-28 md:bottom-12 z-30 flex flex-col items-center space-y-4">
+      <div className="absolute right-4 bottom-28 md:bottom-12 z-40 flex flex-col items-center space-y-4">
         <div className="flex flex-col items-center space-y-2">
            <AnimatePresence>
              {showAllReactions && sortedReactions.length > 1 && (
@@ -543,15 +611,26 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
            )}
         </div>
 
-        <button onClick={() => setShowReactionPicker(!showReactionPicker)} className={cn("flex h-12 w-12 items-center justify-center rounded-full border shadow-2xl transition-all backdrop-blur-xl", showReactionPicker ? "bg-vibe-accent border-vibe-accent text-vibe-bg rotate-45" : "bg-white/10 border-white/10 text-white hover:bg-white/20")}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowReactionPicker(!showReactionPicker);
+          }}
+          className={cn("flex h-12 w-12 items-center justify-center rounded-full border shadow-2xl transition-all backdrop-blur-xl", showReactionPicker ? "bg-vibe-accent border-vibe-accent text-vibe-bg rotate-45" : "bg-white/10 border-white/10 text-white hover:bg-white/20")}
+        >
           <Plus size={24} />
         </button>
 
         <AnimatePresence>
           {showReactionPicker && (
-            <motion.div initial={{ opacity: 0, x: -20, scale: 0.8 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -20, scale: 0.8 }} className="absolute bottom-16 right-0 w-48 grid grid-cols-4 gap-2 rounded-2xl border border-white/15 bg-black/80 p-2 backdrop-blur-2xl">
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.92 }}
+              className="fixed bottom-28 right-5 z-[220] grid w-48 grid-cols-4 gap-2 rounded-2xl border border-white/15 bg-black/85 p-2 shadow-2xl backdrop-blur-2xl lg:right-[340px]"
+            >
               {REACTION_EMOJIS.map(emoji => (
-                <button key={emoji} onClick={() => { onReact(vibe.id, emoji); setShowReactionPicker(false); }} className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-xl">{emoji}</button>
+                <button key={emoji} onClick={(e) => { e.stopPropagation(); onReact(vibe.id, emoji); setShowReactionPicker(false); }} className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-xl">{emoji}</button>
               ))}
             </motion.div>
           )}
@@ -601,7 +680,13 @@ export function FeedItem({ vibe, onReact, onSave, hasSaved, onOpenProfile, onTog
   );
 }
 
-function VideoBackdrop({ src }: { src: string }) {
+function VideoBackdrop({
+  src,
+  backgroundVideoRef
+}: {
+  src: string;
+  backgroundVideoRef?: React.RefObject<HTMLVideoElement | null>;
+}) {
   const [isReady, setIsReady] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -614,6 +699,25 @@ function VideoBackdrop({ src }: { src: string }) {
   const progressBarRef = useRef<HTMLDivElement>(null);
   const feedbackTimeout = useRef<any>(null);
 
+  const syncBackgroundVideo = useCallback((shouldPlay: boolean) => {
+    const mainVideo = videoRef.current;
+    const backgroundVideo = backgroundVideoRef?.current;
+    if (!mainVideo || !backgroundVideo) return;
+
+    if (Number.isFinite(mainVideo.currentTime)) {
+      const drift = Math.abs(backgroundVideo.currentTime - mainVideo.currentTime);
+      if (drift > 0.35) {
+        backgroundVideo.currentTime = mainVideo.currentTime;
+      }
+    }
+
+    if (shouldPlay) {
+      backgroundVideo.play().catch(() => {});
+    } else {
+      backgroundVideo.pause();
+    }
+  }, [backgroundVideoRef]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -621,14 +725,16 @@ function VideoBackdrop({ src }: { src: string }) {
       if (entry.isIntersecting) {
         if (!isDragging) video.play().catch(() => {});
         setIsPlaying(true);
+        syncBackgroundVideo(true);
       } else {
         video.pause();
         setIsPlaying(false);
+        syncBackgroundVideo(false);
       }
     }, { threshold: 0.6 });
     observer.observe(video);
     return () => observer.disconnect();
-  }, [isDragging]);
+  }, [isDragging, syncBackgroundVideo]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -640,6 +746,7 @@ function VideoBackdrop({ src }: { src: string }) {
     if (videoRef.current && !isDragging) {
       const currentProgress = (videoRef.current.currentTime / videoRef.current.duration) * 100;
       setProgress(currentProgress);
+      syncBackgroundVideo(!videoRef.current.paused);
     }
   };
 
@@ -658,6 +765,9 @@ function VideoBackdrop({ src }: { src: string }) {
     if (isDragging || e.type === 'click') {
       setProgress(percentage);
       videoRef.current.currentTime = newTime;
+      if (backgroundVideoRef?.current) {
+        backgroundVideoRef.current.currentTime = newTime;
+      }
     }
   };
 
@@ -682,6 +792,9 @@ function VideoBackdrop({ src }: { src: string }) {
 
         setProgress(percentage);
         videoRef.current.currentTime = newTime;
+        if (backgroundVideoRef?.current) {
+          backgroundVideoRef.current.currentTime = newTime;
+        }
       }
     };
 
@@ -689,7 +802,10 @@ function VideoBackdrop({ src }: { src: string }) {
       if (isDragging) {
         setIsDragging(false);
         setHoverTime(null);
-        if (isPlaying) videoRef.current?.play().catch(() => {});
+        if (isPlaying) {
+          videoRef.current?.play().catch(() => {});
+          syncBackgroundVideo(true);
+        }
       }
     };
 
@@ -706,7 +822,7 @@ function VideoBackdrop({ src }: { src: string }) {
       window.removeEventListener('mouseup', handleGlobalUp);
       window.removeEventListener('touchend', handleGlobalUp);
     };
-  }, [isDragging, isPlaying]);
+  }, [backgroundVideoRef, isDragging, isPlaying, syncBackgroundVideo]);
 
   const togglePlay = (e: React.MouseEvent | React.TouchEvent) => {
     if (isDragging) return;
@@ -718,10 +834,12 @@ function VideoBackdrop({ src }: { src: string }) {
     if (videoRef.current.paused) {
       videoRef.current.play();
       setIsPlaying(true);
+      syncBackgroundVideo(true);
       setFeedback('play');
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
+      syncBackgroundVideo(false);
       setFeedback('pause');
     }
 

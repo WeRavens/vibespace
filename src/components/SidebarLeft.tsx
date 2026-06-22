@@ -1,7 +1,7 @@
 import { useAuth } from '../lib/AuthContext';
 import { MOODS } from '../lib/types';
 import { motion } from 'motion/react';
-import { Command, Search, Bell, User, Ghost } from 'lucide-react';
+import { Command, Search, Bell, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/LanguageContext';
 
@@ -21,7 +21,6 @@ export function SidebarLeft({ activeTab, setActiveTab, activeMood, setActiveMood
     { icon: Search, label: t('explore'), id: 'Explore' },
     { icon: Bell, label: t('notifications'), id: 'Notifications' },
     { icon: User, label: t('profile'), id: 'Profile' },
-    { icon: Ghost, label: t('anonymous'), id: 'Anonymous' },
   ];
 
   return (
